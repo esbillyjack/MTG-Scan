@@ -1522,3 +1522,352 @@ input:checked + .slider:before {
         right: 10px;
     }
 } 
+
+/* Mana Symbol Styles */
+.mana-cost-display {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: wrap;
+}
+
+.mana-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    border: 1px solid rgba(0,0,0,0.2);
+    text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+    font-family: 'Arial', sans-serif;
+    letter-spacing: 0;
+    min-width: 18px;
+    flex-shrink: 0;
+}
+
+/* Basic mana colors with proper symbols */
+.mana-white {
+    background: linear-gradient(135deg, #fffbd5 0%, #f7f0a8 100%);
+    color: #333;
+    border-color: #d4af37;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+    position: relative;
+}
+
+.mana-white::before {
+    content: "☀";
+    font-size: 12px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+.mana-blue {
+    background: linear-gradient(135deg, #0e68ab 0%, #1e88e5 100%);
+    color: white;
+    border-color: #0d47a1;
+    position: relative;
+}
+
+.mana-blue::before {
+    content: "💧";
+    font-size: 10px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+.mana-black {
+    background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
+    color: white;
+    border-color: #000;
+    position: relative;
+}
+
+.mana-black::before {
+    content: "💀";
+    font-size: 10px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+.mana-red {
+    background: linear-gradient(135deg, #d32f2f 0%, #f44336 100%);
+    color: white;
+    border-color: #b71c1c;
+    position: relative;
+}
+
+.mana-red::before {
+    content: "🔥";
+    font-size: 10px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+.mana-green {
+    background: linear-gradient(135deg, #388e3c 0%, #4caf50 100%);
+    color: white;
+    border-color: #1b5e20;
+    position: relative;
+}
+
+.mana-green::before {
+    content: "🌳";
+    font-size: 10px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+.mana-colorless {
+    background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%);
+    color: white;
+    border-color: #424242;
+    position: relative;
+}
+
+.mana-colorless::before {
+    content: "◇";
+    font-size: 12px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+.mana-generic {
+    background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%);
+    color: white;
+    border-color: #424242;
+}
+
+/* Hybrid mana symbols */
+.mana-hybrid {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+    overflow: hidden;
+}
+
+.mana-wu {
+    background: linear-gradient(45deg, #fffbd5 0%, #fffbd5 50%, #0e68ab 50%, #1e88e5 100%);
+    color: #333;
+    border-color: #666;
+}
+
+.mana-wb {
+    background: linear-gradient(45deg, #fffbd5 0%, #fffbd5 50%, #2c2c2c 50%, #1a1a1a 100%);
+    color: #333;
+    border-color: #666;
+}
+
+.mana-ub {
+    background: linear-gradient(45deg, #0e68ab 0%, #1e88e5 50%, #2c2c2c 50%, #1a1a1a 100%);
+    color: white;
+    border-color: #333;
+}
+
+.mana-ur {
+    background: linear-gradient(45deg, #0e68ab 0%, #1e88e5 50%, #d32f2f 50%, #f44336 100%);
+    color: white;
+    border-color: #333;
+}
+
+.mana-br {
+    background: linear-gradient(45deg, #2c2c2c 0%, #1a1a1a 50%, #d32f2f 50%, #f44336 100%);
+    color: white;
+    border-color: #333;
+}
+
+.mana-bg {
+    background: linear-gradient(45deg, #2c2c2c 0%, #1a1a1a 50%, #388e3c 50%, #4caf50 100%);
+    color: white;
+    border-color: #333;
+}
+
+.mana-rg {
+    background: linear-gradient(45deg, #d32f2f 0%, #f44336 50%, #388e3c 50%, #4caf50 100%);
+    color: white;
+    border-color: #333;
+}
+
+.mana-rw {
+    background: linear-gradient(45deg, #d32f2f 0%, #f44336 50%, #fffbd5 50%, #f7f0a8 100%);
+    color: white;
+    border-color: #666;
+}
+
+.mana-gw {
+    background: linear-gradient(45deg, #388e3c 0%, #4caf50 50%, #fffbd5 50%, #f7f0a8 100%);
+    color: white;
+    border-color: #666;
+}
+
+.mana-gu {
+    background: linear-gradient(45deg, #388e3c 0%, #4caf50 50%, #0e68ab 50%, #1e88e5 100%);
+    color: white;
+    border-color: #333;
+}
+
+/* Phyrexian mana symbols */
+.mana-phyrexian {
+    position: relative;
+    font-size: 9px;
+    border: 2px solid #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.mana-wp {
+    background: linear-gradient(135deg, #fffbd5 0%, #f7f0a8 100%);
+    color: #333;
+    border-color: #d4af37;
+}
+
+.mana-up {
+    background: linear-gradient(135deg, #0e68ab 0%, #1e88e5 100%);
+    color: white;
+    border-color: #0d47a1;
+}
+
+.mana-bp {
+    background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
+    color: white;
+    border-color: #000;
+}
+
+.mana-rp {
+    background: linear-gradient(135deg, #d32f2f 0%, #f44336 100%);
+    color: white;
+    border-color: #b71c1c;
+}
+
+.mana-gp {
+    background: linear-gradient(135deg, #388e3c 0%, #4caf50 100%);
+    color: white;
+    border-color: #1b5e20;
+}
+
+/* Special symbols */
+.mana-snow {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #0d47a1;
+    border-color: #1976d2;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.mana-snow::before {
+    content: "❄";
+    font-size: 12px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+.mana-tap {
+    background: linear-gradient(135deg, #fafafa 0%, #e0e0e0 100%);
+    color: #333;
+    border-color: #999;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.mana-tap::before {
+    content: "⟲";
+    font-size: 12px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    line-height: 1;
+}
+
+.mana-energy {
+    background: linear-gradient(135deg, #fff9c4 0%, #ffeb3b 100%);
+    color: #f57f17;
+    border-color: #ff8f00;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+    position: relative;
+}
+
+.mana-energy::before {
+    content: "⚡";
+    font-size: 12px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
+
+/* No mana cost indicator */
+.no-mana {
+    font-style: italic;
+    color: #999;
+    font-size: 0.9rem;
+}
+
+/* Hover effects for mana symbols */
+.mana-symbol:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    z-index: 10;
+    position: relative;
+}
+
+/* Larger mana symbols for titles/headers */
+.mana-symbol.large {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.mana-symbol.extra-large {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .mana-cost-display {
+        gap: 1px;
+    }
+    
+    .mana-symbol {
+        width: 16px;
+        height: 16px;
+        font-size: 10px;
+    }
+    
+    .mana-hybrid {
+        width: 18px;
+        height: 18px;
+        font-size: 9px;
+    }
+} 

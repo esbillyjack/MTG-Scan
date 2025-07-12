@@ -648,7 +648,10 @@ const RARITY_OPTIONS = [
     { value: 'uncommon', label: 'Uncommon' },
     { value: 'rare', label: 'Rare' },
     { value: 'mythic', label: 'Mythic Rare' },
-    { value: 'special', label: 'Special' }
+    { value: 'bonus', label: 'Bonus' },
+    { value: 'special', label: 'Special' },
+    { value: 'timeshifted', label: 'Timeshifted' },
+    { value: 'masterpiece', label: 'Masterpiece' }
 ];
 
 // Common Magic: The Gathering sets with their codes
@@ -763,8 +766,96 @@ const SET_OPTIONS = [
     { value: 'mh3', label: 'Modern Horizons 3', code: 'MH3' },
     { value: 'blb', label: 'Bloomburrow', code: 'BLB' },
     { value: 'dsk', label: 'Duskmourn: House of Horror', code: 'DSK' },
-    { value: 'fdn', label: 'Foundations', code: 'FDN' }
+    { value: 'fdn', label: 'Foundations', code: 'FDN' },
+    { value: 'bbd', label: 'Battlebond', code: 'BBD' },
+    { value: 'clu', label: 'Ravnica: Clue Edition', code: 'CLU' },
+    { value: 'cmr', label: 'Commander Legends', code: 'CMR' },
+    { value: 'dsc', label: 'Duskmourn: House of Horror Commander', code: 'DSC' },
+    { value: 'eoc', label: 'Edge of Eternities Commander', code: 'EOC' },
+    { value: 'ugl', label: 'Unglued', code: 'UGL' },
+    { value: 'vma', label: 'Vintage Masters', code: 'VMA' }
 ];
+
+// Convert mana cost string to HTML with mana symbols
+function formatManaCost(manaCost) {
+    if (!manaCost || manaCost === '' || manaCost === 'None') {
+        return '<span class="no-mana">—</span>';
+    }
+    
+    // Replace mana symbols with HTML spans
+    let formattedCost = manaCost;
+    
+    // Define mana symbol mappings
+    const manaSymbols = {
+        '{W}': '<span class="mana-symbol mana-white"></span>',
+        '{U}': '<span class="mana-symbol mana-blue"></span>',
+        '{B}': '<span class="mana-symbol mana-black"></span>',
+        '{R}': '<span class="mana-symbol mana-red"></span>',
+        '{G}': '<span class="mana-symbol mana-green"></span>',
+        '{C}': '<span class="mana-symbol mana-colorless"></span>',
+        '{X}': '<span class="mana-symbol mana-generic">X</span>',
+        '{Y}': '<span class="mana-symbol mana-generic">Y</span>',
+        '{Z}': '<span class="mana-symbol mana-generic">Z</span>',
+        
+        // Generic mana costs (0-20)
+        '{0}': '<span class="mana-symbol mana-generic">0</span>',
+        '{1}': '<span class="mana-symbol mana-generic">1</span>',
+        '{2}': '<span class="mana-symbol mana-generic">2</span>',
+        '{3}': '<span class="mana-symbol mana-generic">3</span>',
+        '{4}': '<span class="mana-symbol mana-generic">4</span>',
+        '{5}': '<span class="mana-symbol mana-generic">5</span>',
+        '{6}': '<span class="mana-symbol mana-generic">6</span>',
+        '{7}': '<span class="mana-symbol mana-generic">7</span>',
+        '{8}': '<span class="mana-symbol mana-generic">8</span>',
+        '{9}': '<span class="mana-symbol mana-generic">9</span>',
+        '{10}': '<span class="mana-symbol mana-generic">10</span>',
+        '{11}': '<span class="mana-symbol mana-generic">11</span>',
+        '{12}': '<span class="mana-symbol mana-generic">12</span>',
+        '{13}': '<span class="mana-symbol mana-generic">13</span>',
+        '{14}': '<span class="mana-symbol mana-generic">14</span>',
+        '{15}': '<span class="mana-symbol mana-generic">15</span>',
+        '{16}': '<span class="mana-symbol mana-generic">16</span>',
+        '{17}': '<span class="mana-symbol mana-generic">17</span>',
+        '{18}': '<span class="mana-symbol mana-generic">18</span>',
+        '{19}': '<span class="mana-symbol mana-generic">19</span>',
+        '{20}': '<span class="mana-symbol mana-generic">20</span>',
+        
+        // Hybrid mana
+        '{W/U}': '<span class="mana-symbol mana-hybrid mana-wu">W/U</span>',
+        '{W/B}': '<span class="mana-symbol mana-hybrid mana-wb">W/B</span>',
+        '{U/B}': '<span class="mana-symbol mana-hybrid mana-ub">U/B</span>',
+        '{U/R}': '<span class="mana-symbol mana-hybrid mana-ur">U/R</span>',
+        '{B/R}': '<span class="mana-symbol mana-hybrid mana-br">B/R</span>',
+        '{B/G}': '<span class="mana-symbol mana-hybrid mana-bg">B/G</span>',
+        '{R/G}': '<span class="mana-symbol mana-hybrid mana-rg">R/G</span>',
+        '{R/W}': '<span class="mana-symbol mana-hybrid mana-rw">R/W</span>',
+        '{G/W}': '<span class="mana-symbol mana-hybrid mana-gw">G/W</span>',
+        '{G/U}': '<span class="mana-symbol mana-hybrid mana-gu">G/U</span>',
+        
+        // Phyrexian mana
+        '{W/P}': '<span class="mana-symbol mana-phyrexian mana-wp">W/P</span>',
+        '{U/P}': '<span class="mana-symbol mana-phyrexian mana-up">U/P</span>',
+        '{B/P}': '<span class="mana-symbol mana-phyrexian mana-bp">B/P</span>',
+        '{R/P}': '<span class="mana-symbol mana-phyrexian mana-rp">R/P</span>',
+        '{G/P}': '<span class="mana-symbol mana-phyrexian mana-gp">G/P</span>',
+        
+        // Snow mana
+        '{S}': '<span class="mana-symbol mana-snow"></span>',
+        
+        // Tap symbol
+        '{T}': '<span class="mana-symbol mana-tap"></span>',
+        
+        // Energy
+        '{E}': '<span class="mana-symbol mana-energy"></span>'
+    };
+    
+    // Replace each mana symbol
+    for (const [symbol, html] of Object.entries(manaSymbols)) {
+        formattedCost = formattedCost.replace(new RegExp(symbol.replace(/[{}]/g, '\\$&'), 'g'), html);
+    }
+    
+    return formattedCost;
+}
 
 // Create enhanced card detail HTML with navigation
 function createEnhancedCardDetailHTML(card, index, total) {
@@ -813,7 +904,7 @@ function createEnhancedCardDetailHTML(card, index, total) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Mana Cost:</span>
-                    <span class="detail-value">${card.mana_cost || 'None'}</span>
+                    <span class="detail-value mana-cost-display">${formatManaCost(card.mana_cost)}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Count:</span>
