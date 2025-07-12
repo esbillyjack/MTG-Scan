@@ -286,27 +286,15 @@ function createMiniFannedStack(card, index) {
     cardDiv.innerHTML = `
         <div class="card-image mini-fan-container">
             <div class="mini-fan-card mini-fan-back"></div>
-            <div class="mini-fan-card mini-fan-middle"></div>
             <div class="mini-fan-card mini-fan-front">
                 ${card.image_url ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
             </div>
             ${stackBadge}
             ${exampleBadge}
-        </div>
-        <div class="card-info">
-            <div class="card-name">${card.name}</div>
-            <div class="card-set">${card.set_name || 'Unknown Set'}</div>
-            <div class="card-prices">
-                <span class="price price-usd">
-                    <i class="fas fa-dollar-sign"></i>
-                    $${(card.price_usd || 0).toFixed(2)}
-                </span>
-                <span class="price price-eur">
-                    <i class="fas fa-euro-sign"></i>
-                    €${(card.price_eur || 0).toFixed(2)}
-                </span>
+            <div class="card-title-overlay">
+                <div class="card-name">${card.name}</div>
+                <div class="card-count">Stack (${card.total_cards})</div>
             </div>
-            <div class="card-count">Stack (${card.total_cards})</div>
         </div>
     `;
     
@@ -468,26 +456,17 @@ function createDatabaseCard(card, index) {
     // Add example indicator
     const exampleBadge = card.is_example ? '<span class="example-badge">EXAMPLE</span>' : '';
     
+    // Use count from the card, default to 1 if undefined
+    const cardCount = card.count || 1;
+    
     cardDiv.innerHTML = `
         <div class="card-image">
             ${card.image_url ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
             ${exampleBadge}
-        </div>
-        <div class="card-info">
-            <div class="card-name">${card.name}</div>
-            <div class="card-set">${card.set_name || 'Unknown Set'}</div>
-            <div class="card-prices">
-                <span class="price price-usd">
-                    <i class="fas fa-dollar-sign"></i>
-                    $${(card.price_usd || 0).toFixed(2)}
-                </span>
-                <span class="price price-eur">
-                    <i class="fas fa-euro-sign"></i>
-                    €${(card.price_eur || 0).toFixed(2)}
-                </span>
+            <div class="card-title-overlay">
+                <div class="card-name">${card.name}</div>
+                <div class="card-count">Count: ${cardCount}</div>
             </div>
-            <div class="card-count">Count: ${card.count}</div>
-            ${card.condition ? `<div class="card-condition">Condition: ${card.condition}</div>` : ''}
         </div>
     `;
     
@@ -559,6 +538,9 @@ function addNavigationArrows() {
     existingArrows.forEach(arrow => arrow.remove());
     
     const filteredCards = filterCards();
+    
+    // Only show arrows if there are multiple cards
+    if (filteredCards.length <= 1) return;
     
     // Left arrow
     if (currentCardIndex > 0) {
@@ -786,7 +768,7 @@ const SET_OPTIONS = [
 
 // Create enhanced card detail HTML with navigation
 function createEnhancedCardDetailHTML(card, index, total) {
-    const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'UNKNOWN';
+    const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'LP';
     const conditionDropdown = `
         <select id="conditionDropdown" onchange="updateCardCondition(${card.id}, this.value)">
             ${CONDITION_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === condition ? ' selected' : ''}>${opt.label}</option>`).join('')}
@@ -826,20 +808,8 @@ function createEnhancedCardDetailHTML(card, index, total) {
                     <span class="detail-value">${setDropdown}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Set Code:</span>
-                    <span class="detail-value" id="setCodeDisplay">${card.set_code || 'Unknown'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Collector Number:</span>
-                    <span class="detail-value">${card.collector_number || 'Unknown'}</span>
-                </div>
-                <div class="detail-row">
                     <span class="detail-label">Rarity:</span>
                     <span class="detail-value">${rarityDropdown}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Type:</span>
-                    <span class="detail-value">${card.type_line || 'Unknown'}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Mana Cost:</span>
@@ -847,47 +817,25 @@ function createEnhancedCardDetailHTML(card, index, total) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Count:</span>
-                    <span class="detail-value">${card.count}</span>
+                    <span class="detail-value">${card.count || 1}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Condition:</span>
                     <span class="detail-value">${conditionDropdown}</span>
                 </div>
-                ${card.notes ? `
-                <div class="detail-row">
-                    <span class="detail-label">Notes:</span>
-                    <span class="detail-value notes-text">${card.notes}</span>
-                </div>
-                ` : ''}
                 <div class="detail-row">
                     <span class="detail-label">Prices:</span>
                     <div class="price-details">
-                        <span class="price-item price-usd">
-                            <i class="fas fa-dollar-sign"></i>
-                            $${(card.price_usd || 0).toFixed(2)}
-                        </span>
-                        <span class="price-item price-eur">
-                            <i class="fas fa-euro-sign"></i>
-                            €${(card.price_eur || 0).toFixed(2)}
-                        </span>
-                        <span class="price-item price-tix">
-                            <i class="fas fa-coins"></i>
-                            ${(card.price_tix || 0).toFixed(2)} TIX
-                        </span>
+                        <span class="price-item price-usd">$${(card.price_usd || 0).toFixed(2)}</span>
+                        <span class="price-item price-eur">€${(card.price_eur || 0).toFixed(2)}</span>
                     </div>
                 </div>
+                ${card.oracle_text ? `
                 <div class="detail-row">
                     <span class="detail-label">Oracle Text:</span>
                     <div class="oracle-text">${card.oracle_text}</div>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">First Seen:</span>
-                    <span class="detail-value">${new Date(card.first_seen).toLocaleDateString()}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Last Seen:</span>
-                    <span class="detail-value">${new Date(card.last_seen).toLocaleDateString()}</span>
-                </div>
+                ` : ''}
                 <div class="card-actions">
                     <button class="action-btn" onclick="editCard(${card.id})">
                         <i class="fas fa-edit"></i> Edit

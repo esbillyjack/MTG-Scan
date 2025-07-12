@@ -104,7 +104,7 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
                     count=1,
                     stack_count=len(existing_cards) + 1,
                     notes="",
-                    condition="NM",
+                    condition="LP", # Changed default condition to LP
                     is_example=False,
                     duplicate_group=duplicate_group,
                     stack_id=stack_id
@@ -181,6 +181,7 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
                     "price_usd": card.price_usd,
                     "price_eur": card.price_eur,
                     "price_tix": card.price_tix,
+                    "count": card.count,  # Add individual card count
                     "stack_count": 0,  # Will sum all counts
                     "total_cards": 0,  # Number of individual card entries
                     "first_seen": card.first_seen.isoformat() if card.first_seen else None,
@@ -335,7 +336,7 @@ async def add_card(card_data: dict, db: Session = Depends(get_db)):
             price_tix=card_data.get('price_tix', 0.0),
             count=card_data.get('count', 1),
             notes=card_data.get('notes', ''),
-            condition=card_data.get('condition', 'NM'),
+            condition=card_data.get('condition', 'LP'),
             is_example=card_data.get('is_example', False),
             duplicate_group=duplicate_group,
             first_seen=datetime.fromisoformat(card_data.get('first_seen', datetime.utcnow().isoformat())),

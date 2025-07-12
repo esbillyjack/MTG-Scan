@@ -1248,7 +1248,35 @@ input:checked + .slider:before {
     box-shadow: 0 10px 25px rgba(102, 126, 234, 0.8);
 } 
 
-/* Mini-fanned stacks in gallery view */
+/* Card title overlay for gallery view */
+.card-title-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    color: white;
+    padding: 15px 10px 10px 10px;
+    text-align: center;
+}
+
+.card-title-overlay .card-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-title-overlay .card-count {
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+}
+
+/* Mini-fanned stacks in gallery view - Two card effect */
 .mini-fanned-stack .mini-fan-container {
     position: relative;
     width: 100%;
@@ -1268,15 +1296,9 @@ input:checked + .slider:before {
 }
 
 .mini-fan-back {
-    transform: translate(6px, 6px) rotate(3deg);
+    transform: translate(4px, 4px) rotate(2deg);
     background: linear-gradient(135deg, #e8e8e8 0%, #d0d0d0 100%);
     z-index: 1;
-}
-
-.mini-fan-middle {
-    transform: translate(3px, 3px) rotate(1.5deg);
-    background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
-    z-index: 2;
 }
 
 .mini-fan-front {
@@ -1351,7 +1373,9 @@ input:checked + .slider:before {
     transition: all 0.3s ease;
     display: flex;
     flex-direction: column;
-    height: 350px;
+    width: 180px;
+    height: 250px;
+    margin: 0 auto;
 }
 
 .spread-card:hover {
@@ -1360,7 +1384,7 @@ input:checked + .slider:before {
 }
 
 .spread-card .card-image {
-    height: 250px;
+    height: 180px;
     background: #f8f9fa;
     display: flex;
     align-items: center;
@@ -1376,18 +1400,19 @@ input:checked + .slider:before {
 }
 
 .spread-card .card-info {
-    padding: 15px;
+    padding: 10px;
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: center;
+    text-align: center;
 }
 
 .spread-card .card-name {
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: #333;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1395,9 +1420,9 @@ input:checked + .slider:before {
 
 .spread-card .card-condition,
 .spread-card .card-count {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     color: #666;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 @media (max-width: 768px) {
