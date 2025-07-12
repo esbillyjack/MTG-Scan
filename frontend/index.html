@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Card Scanner</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-magic"></i> Magic Card Scanner</h1>
+                <p>AI-powered Magic: The Gathering card identification and price tracking</p>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <h3>Upload Card Photos</h3>
+                        <p>Drag and drop images here or click to browse</p>
+                        <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-folder-open"></i> Choose Files
+                        </button>
+                    </div>
+                </div>
+                <div class="upload-progress" id="uploadProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="progressText">Processing image...</p>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <h2><i class="fas fa-search"></i> Identified Cards</h2>
+                <div class="results-grid" id="resultsGrid"></div>
+            </section>
+
+            <!-- Database Section -->
+            <section class="database-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-database"></i> Card Database</h2>
+                    <div class="stats" id="stats">
+                        <div class="stat">
+                            <span class="stat-number" id="totalCards">0</span>
+                            <span class="stat-label">Cards</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="totalCount">0</span>
+                            <span class="stat-label">Total</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="totalValue">$0</span>
+                            <span class="stat-label">Value</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <input type="text" id="searchInput" placeholder="Search cards..." class="search-input">
+                    <button class="refresh-btn" onclick="loadCards()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                
+                <div class="cards-grid" id="cardsGrid"></div>
+            </section>
+        </main>
+
+        <!-- Card Detail Modal -->
+        <div class="modal" id="cardModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalTitle">Card Details</h3>
+                    <button class="close-btn" onclick="closeModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- Card details will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Processing...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
