@@ -354,7 +354,7 @@ function createStackedCard(card, index) {
                     €${(card.price_eur || 0).toFixed(2)}
                 </span>
             </div>
-            <div class="card-count">Stack (${card.total_cards})</div>
+            <div class="card-count">${card.total_cards > 1 ? `Stack (${card.total_cards})` : `Count: ${card.stack_count}`}</div>
         </div>
     `;
     
@@ -637,7 +637,6 @@ const SET_OPTIONS = [
 
 // Create enhanced card detail HTML with navigation
 function createEnhancedCardDetailHTML(card, index, total) {
-    const exampleBadge = card.is_example ? '<span class="example-badge-large">EXAMPLE - NOT OWNED</span>' : '';
     const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'UNKNOWN';
     const conditionDropdown = `
         <select id="conditionDropdown" onchange="updateCardCondition(${card.id}, this.value)">
@@ -661,12 +660,12 @@ function createEnhancedCardDetailHTML(card, index, total) {
     
     return `
         <div class="card-detail-container">
-            ${exampleBadge}
             <div class="card-image-section">
                 <img src="${card.image_url || 'https://via.placeholder.com/300x420/667eea/ffffff?text=Card+Image'}" 
                      alt="${card.name}" 
                      class="card-image-large"
                      onerror="this.src='https://via.placeholder.com/300x420/667eea/ffffff?text=Card+Image'">
+                ${card.is_example ? '<div class="example-badge">EXAMPLE</div>' : ''}
             </div>
             <div class="card-details">
                 <div class="detail-row">
