@@ -1,97 +1,60 @@
 #!/usr/bin/env python3
 """
-Migration script to add new fields to the database
+Database migration script to add new columns for soft deletion and unique IDs
 """
 
 import sqlite3
-import os
-from backend.database import SessionLocal, Card
+import uuid
+from datetime import datetime
 
 def migrate_database():
-    """Add new columns to the existing database"""
+    """Add new columns to existing database"""
     conn = sqlite3.connect('magic_cards.db')
     cursor = conn.cursor()
     
-    print("Migrating database...")
-    
-    # Check if columns already exist
-    cursor.execute("PRAGMA table_info(cards)")
-    columns = [column[1] for column in cursor.fetchall()]
-    
-    # Add new columns if they don't exist
-    new_columns = [
-        ('notes', 'TEXT DEFAULT ""'),
-        ('condition', 'TEXT DEFAULT "NM"'),
-        ('is_example', 'BOOLEAN DEFAULT 0'),
-        ('duplicate_group', 'TEXT')
-    ]
-    
-    for column_name, column_def in new_columns:
-        if column_name not in columns:
-            print(f"Adding column: {column_name}")
-            cursor.execute(f"ALTER TABLE cards ADD COLUMN {column_name} {column_def}")
-    
-    # Mark all existing cards as examples (since they're test data)
-    print("Marking existing cards as examples...")
-    cursor.execute("UPDATE cards SET is_example = 1")
-    
-    # Create duplicate groups for identical cards
-    print("Creating duplicate groups...")
-    cursor.execute("""
-        UPDATE cards 
-        SET duplicate_group = name || '|' || COALESCE(set_code, '') || '|' || COALESCE(collector_number, '')
-        WHERE duplicate_group IS NULL
-    """)
-    
-    conn.commit()
-    conn.close()
-    
-    print("Migration completed successfully!")
-
-def cleanup_database():
-    db = SessionLocal()
     try:
-        # Remove cards with no image_url or empty image_url
-        cards_no_image = db.query(Card).filter((Card.image_url == None) | (Card.image_url == '')).all()
-        for card in cards_no_image:
-            db.delete(card)
-        db.commit()
-        print(f"Removed {len(cards_no_image)} cards with no image_url.")
-
-        # Remove cards with fake/test image URLs (containing '123456')
-        cards_fake_image = db.query(Card).filter(Card.image_url.like('%123456%')).all()
-        for card in cards_fake_image:
-            db.delete(card)
-        db.commit()
-        print(f"Removed {len(cards_fake_image)} cards with fake image URLs.")
-
-        # Remove cards with empty set_code
-        cards_no_set = db.query(Card).filter((Card.set_code == None) | (Card.set_code == '')).all()
-        for card in cards_no_set:
-            db.delete(card)
-        db.commit()
-        print(f"Removed {len(cards_no_set)} cards with no set_code.")
-
-        # Fix stack_count and count for remaining cards
-        all_cards = db.query(Card).all()
-        for card in all_cards:
-            # In individual view, each card should have count=1
-            card.count = 1
-            # stack_count should match count for individual cards
-            card.stack_count = 1
-        db.commit()
-        print(f"Fixed count and stack_count for {len(all_cards)} cards.")
-
-        # Mark all remaining cards as is_example=True
-        remaining = db.query(Card).all()
-        for card in remaining:
-            card.is_example = True
-        db.commit()
-        print(f"Marked {len(remaining)} cards as example cards.")
+        # Check if columns already exist
+        cursor.execute("PRAGMA table_info(cards)")
+        columns = [column[1] for column in cursor.fetchall()]
         
+        # Add unique_id column if it doesn't exist
+        if 'unique_id' not in columns:
+            print("Adding unique_id column...")
+            cursor.execute("ALTER TABLE cards ADD COLUMN unique_id TEXT")
+            
+            # Generate unique IDs for existing cards
+            cursor.execute("SELECT id FROM cards")
+            card_ids = cursor.fetchall()
+            
+            for card_id in card_ids:
+                unique_id = str(uuid.uuid4())
+                cursor.execute("UPDATE cards SET unique_id = ? WHERE id = ?", (unique_id, card_id[0]))
+            
+            # Create index for unique_id
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_unique_id ON cards(unique_id)")
+            print(f"Generated unique IDs for {len(card_ids)} existing cards")
+        
+        # Add deleted column if it doesn't exist
+        if 'deleted' not in columns:
+            print("Adding deleted column...")
+            cursor.execute("ALTER TABLE cards ADD COLUMN deleted BOOLEAN DEFAULT 0")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_deleted ON cards(deleted)")
+            print("Added deleted column with default value False")
+        
+        # Add deleted_at column if it doesn't exist
+        if 'deleted_at' not in columns:
+            print("Adding deleted_at column...")
+            cursor.execute("ALTER TABLE cards ADD COLUMN deleted_at DATETIME")
+            print("Added deleted_at column")
+        
+        conn.commit()
+        print("Database migration completed successfully!")
+        
+    except Exception as e:
+        print(f"Error during migration: {e}")
+        conn.rollback()
     finally:
-        db.close()
+        conn.close()
 
 if __name__ == "__main__":
     migrate_database()
-    cleanup_database()

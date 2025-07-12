@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
+import uuid
 
 # Database setup
 DATABASE_URL = "sqlite:///./magic_cards.db"
@@ -14,6 +15,7 @@ class Card(Base):
     __tablename__ = "cards"
     
     id = Column(Integer, primary_key=True, index=True)
+    unique_id = Column(String, unique=True, index=True, default=lambda: str(uuid.uuid4()))  # Unique ID for each card entry
     name = Column(String, index=True)
     set_code = Column(String)
     set_name = Column(String)
@@ -37,8 +39,10 @@ class Card(Base):
     is_example = Column(Boolean, default=False)  # Mark as example/not owned
     duplicate_group = Column(String, index=True)  # Group identical cards together
     stack_id = Column(String, index=True)  # Unique identifier for the stack
+    deleted = Column(Boolean, default=False, index=True)  # Soft deletion flag
     first_seen = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, default=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)  # When the card was soft deleted
 
 def init_db():
     """Initialize the database and create tables"""

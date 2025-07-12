@@ -257,24 +257,24 @@ function displayCards() {
         // and regular individual cards for singles
         filteredCards.forEach((card, index) => {
             const cardElement = card.total_cards > 1 ? 
-                createMiniFannedStack(card, index) : 
-                createDatabaseCard(card, index);
+                createMiniFannedStack(card, index, filteredCards) : 
+                createDatabaseCard(card, index, filteredCards);
             cardsGrid.appendChild(cardElement);
         });
     } else {
         // Display individual cards
         filteredCards.forEach((card, index) => {
-            const cardElement = createDatabaseCard(card, index);
+            const cardElement = createDatabaseCard(card, index, filteredCards);
             cardsGrid.appendChild(cardElement);
         });
     }
 }
 
 // Create a mini-fanned stack for cards with duplicates in gallery view
-function createMiniFannedStack(card, index) {
+function createMiniFannedStack(card, index, filteredCards) {
     const cardDiv = document.createElement('div');
     cardDiv.className = `card-item mini-fanned-stack color-border-${getColorBorder(card.colors)}`;
-    cardDiv.onclick = () => showStackSpreadOverlay(index);
+    cardDiv.onclick = () => showStackSpreadOverlay(index, filteredCards);
     
     // Create stack count badge
     const stackBadge = `<div class="stack-count-badge">${card.total_cards}</div>`;
@@ -291,10 +291,10 @@ function createMiniFannedStack(card, index) {
             </div>
             ${stackBadge}
             ${exampleBadge}
-            <div class="card-title-overlay">
-                <div class="card-name">${card.name}</div>
-                <div class="card-count">Stack (${card.total_cards})</div>
-            </div>
+        </div>
+        <div class="card-info">
+            <div class="card-name">${card.name}</div>
+            <div class="card-count">Count: ${card.total_cards}</div>
         </div>
     `;
     
@@ -302,8 +302,8 @@ function createMiniFannedStack(card, index) {
 }
 
 // Show stack spread overlay (replaces the fan modal)
-function showStackSpreadOverlay(index) {
-    const card = cards[index];
+function showStackSpreadOverlay(index, filteredCards) {
+    const card = filteredCards ? filteredCards[index] : cards[index];
     if (!card) return;
     
     currentCardIndex = index;
@@ -448,10 +448,10 @@ function getColorBorder(colors) {
 }
 
 // Create a database card element
-function createDatabaseCard(card, index) {
+function createDatabaseCard(card, index, filteredCards) {
     const cardDiv = document.createElement('div');
     cardDiv.className = `card-item color-border-${getColorBorder(card.colors)}`;
-    cardDiv.onclick = () => showCardDetails(index);
+    cardDiv.onclick = () => showCardDetails(index, filteredCards);
     
     // Add example indicator
     const exampleBadge = card.is_example ? '<span class="example-badge">EXAMPLE</span>' : '';
@@ -463,10 +463,10 @@ function createDatabaseCard(card, index) {
         <div class="card-image">
             ${card.image_url ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
             ${exampleBadge}
-            <div class="card-title-overlay">
-                <div class="card-name">${card.name}</div>
-                <div class="card-count">Count: ${cardCount}</div>
-            </div>
+        </div>
+        <div class="card-info">
+            <div class="card-name">${card.name}</div>
+            <div class="card-count">Count: ${cardCount}</div>
         </div>
     `;
     
@@ -515,29 +515,29 @@ async function loadStats() {
 }
 
 // Show card details modal with navigation
-function showCardDetails(cardIndex) {
+function showCardDetails(cardIndex, filteredCards) {
     currentCardIndex = cardIndex;
-    const filteredCards = filterCards();
-    const card = filteredCards[cardIndex];
+    const cardsToUse = filteredCards || filterCards();
+    const card = cardsToUse[cardIndex];
     
     if (!card) return;
     
     modalTitle.textContent = card.name;
-    modalBody.innerHTML = createEnhancedCardDetailHTML(card, cardIndex, filteredCards.length);
+    modalBody.innerHTML = createEnhancedCardDetailHTML(card, cardIndex, cardsToUse.length);
     
     // Add navigation arrows
-    addNavigationArrows();
+    addNavigationArrows(cardsToUse);
     
     cardModal.style.display = 'block';
 }
 
 // Add navigation arrows to the modal
-function addNavigationArrows() {
+function addNavigationArrows(cardsToUse) {
     // Remove existing arrows
     const existingArrows = document.querySelectorAll('.nav-arrow');
     existingArrows.forEach(arrow => arrow.remove());
     
-    const filteredCards = filterCards();
+    const filteredCards = cardsToUse || filterCards();
     
     // Only show arrows if there are multiple cards
     if (filteredCards.length <= 1) return;
@@ -547,7 +547,7 @@ function addNavigationArrows() {
         const leftArrow = document.createElement('div');
         leftArrow.className = 'nav-arrow nav-arrow-left';
         leftArrow.innerHTML = '<i class="fas fa-chevron-left"></i>';
-        leftArrow.onclick = () => navigateCard(-1);
+        leftArrow.onclick = () => navigateCard(-1, filteredCards);
         cardModal.appendChild(leftArrow);
     }
     
@@ -556,14 +556,14 @@ function addNavigationArrows() {
         const rightArrow = document.createElement('div');
         rightArrow.className = 'nav-arrow nav-arrow-right';
         rightArrow.innerHTML = '<i class="fas fa-chevron-right"></i>';
-        rightArrow.onclick = () => navigateCard(1);
+        rightArrow.onclick = () => navigateCard(1, filteredCards);
         cardModal.appendChild(rightArrow);
     }
 }
 
 // Navigate between cards (respects stacking toggle)
-function navigateCard(direction) {
-    const filteredCards = filterCards();
+function navigateCard(direction, cardsToUse) {
+    const filteredCards = cardsToUse || filterCards();
     const newIndex = currentCardIndex + direction;
     
     if (newIndex >= 0 && newIndex < filteredCards.length) {
@@ -574,7 +574,7 @@ function navigateCard(direction) {
         modalBody.innerHTML = createEnhancedCardDetailHTML(card, currentCardIndex, filteredCards.length);
         
         // Update navigation arrows
-        addNavigationArrows();
+        addNavigationArrows(filteredCards);
     }
 }
 

@@ -71,7 +71,7 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
                 duplicate_group = f"{card_data['name']}|{card_data.get('set_code', '')}|{card_data.get('collector_number', '')}"
                 
                 # Check if this card already exists in the database
-                existing_cards = db.query(Card).filter(Card.duplicate_group == duplicate_group).all()
+                existing_cards = db.query(Card).filter(Card.duplicate_group == duplicate_group, Card.deleted == False).all()
                 
                 # Generate stack_id (use existing one if available, otherwise create new)
                 if existing_cards:
@@ -157,7 +157,7 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
     """
     if view_mode == "stacked":
         # Group cards by duplicate_group and return aggregated data
-        cards = db.query(Card).order_by(Card.name).all()
+        cards = db.query(Card).filter(Card.deleted == False).order_by(Card.name).all()
         
         # Group by duplicate_group
         grouped_cards = {}
@@ -211,7 +211,7 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
         }
     else:
         # Return individual cards
-        cards = db.query(Card).order_by(Card.name).all()
+        cards = db.query(Card).filter(Card.deleted == False).order_by(Card.name).all()
         
         return {
             "view_mode": "individual",
@@ -245,7 +245,7 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
 @app.get("/cards/{card_id}")
 async def get_card(card_id: int, db: Session = Depends(get_db)):
     """Get specific card details"""
-    card = db.query(Card).filter(Card.id == card_id).first()
+    card = db.query(Card).filter(Card.id == card_id, Card.deleted == False).first()
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
     
@@ -351,12 +351,14 @@ async def add_card(card_data: dict, db: Session = Depends(get_db)):
 
 @app.delete("/cards/{card_id}")
 async def delete_card(card_id: int, db: Session = Depends(get_db)):
-    """Delete a specific card"""
-    card = db.query(Card).filter(Card.id == card_id).first()
+    """Soft delete a specific card"""
+    card = db.query(Card).filter(Card.id == card_id, Card.deleted == False).first()
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
     
-    db.delete(card)
+    # Soft delete - just mark as deleted
+    card.deleted = True
+    card.deleted_at = datetime.utcnow()
     db.commit()
     return {"success": True, "card_id": card_id}
 
