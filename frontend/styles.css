@@ -1184,39 +1184,39 @@ input:checked + .slider:before {
 
 /* Magic Color Identity Borders */
 .color-border-white {
-    border: 3px solid #FFFBD5;
-    box-shadow: 0 0 10px rgba(255, 251, 213, 0.5);
+    border: 6px solid #FFFBD5;
+    box-shadow: 0 0 15px rgba(255, 251, 213, 0.6);
 }
 
 .color-border-blue {
-    border: 3px solid #0E68AB;
-    box-shadow: 0 0 10px rgba(14, 104, 171, 0.5);
+    border: 6px solid #0E68AB;
+    box-shadow: 0 0 15px rgba(14, 104, 171, 0.6);
 }
 
 .color-border-black {
-    border: 3px solid #150B00;
-    box-shadow: 0 0 10px rgba(21, 11, 0, 0.5);
+    border: 6px solid #150B00;
+    box-shadow: 0 0 15px rgba(21, 11, 0, 0.6);
 }
 
 .color-border-red {
-    border: 3px solid #D3202A;
-    box-shadow: 0 0 10px rgba(211, 32, 42, 0.5);
+    border: 6px solid #D3202A;
+    box-shadow: 0 0 15px rgba(211, 32, 42, 0.6);
 }
 
 .color-border-green {
-    border: 3px solid #00733E;
-    box-shadow: 0 0 10px rgba(0, 115, 62, 0.5);
+    border: 6px solid #00733E;
+    box-shadow: 0 0 15px rgba(0, 115, 62, 0.6);
 }
 
 .color-border-colorless {
-    border: 3px solid #CCCCCC;
-    box-shadow: 0 0 10px rgba(204, 204, 204, 0.5);
+    border: 6px solid #CCCCCC;
+    box-shadow: 0 0 15px rgba(204, 204, 204, 0.6);
 }
 
 .color-border-multicolor {
-    border: 3px solid;
+    border: 6px solid;
     border-image: linear-gradient(45deg, #FFFBD5, #0E68AB, #150B00, #D3202A, #00733E) 1;
-    box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+    box-shadow: 0 0 15px rgba(102, 126, 234, 0.6);
 }
 
 /* Enhance card hover effects with color borders */
@@ -1246,4 +1246,227 @@ input:checked + .slider:before {
 
 .card-item:hover.color-border-multicolor {
     box-shadow: 0 10px 25px rgba(102, 126, 234, 0.8);
+} 
+
+/* Mini-fanned stacks in gallery view */
+.mini-fanned-stack .mini-fan-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.mini-fan-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+}
+
+.mini-fan-back {
+    transform: translate(6px, 6px) rotate(3deg);
+    background: linear-gradient(135deg, #e8e8e8 0%, #d0d0d0 100%);
+    z-index: 1;
+}
+
+.mini-fan-middle {
+    transform: translate(3px, 3px) rotate(1.5deg);
+    background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
+    z-index: 2;
+}
+
+.mini-fan-front {
+    transform: translate(0px, 0px) rotate(0deg);
+    background: white;
+    z-index: 3;
+}
+
+.mini-fan-front img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Spread overlay (replaces fan modal) */
+.spread-overlay {
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spread-content {
+    width: 95%;
+    max-width: 1400px;
+    max-height: 90vh;
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+}
+
+.spread-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.spread-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.spread-grid {
+    padding: 30px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.spread-card {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    height: 350px;
+}
+
+.spread-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.spread-card .card-image {
+    height: 250px;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.spread-card .card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.spread-card .card-info {
+    padding: 15px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.spread-card .card-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spread-card .card-condition,
+.spread-card .card-count {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+@media (max-width: 768px) {
+    .spread-content {
+        width: 98%;
+        max-height: 95vh;
+    }
+    
+    .spread-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        padding: 20px;
+    }
+    
+    .spread-card {
+        height: 280px;
+    }
+    
+    .spread-card .card-image {
+        height: 200px;
+    }
+} 
+
+/* Navigation arrows for modal */
+.nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 50px;
+    height: 50px;
+    background: rgba(102, 126, 234, 0.9);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    z-index: 2001;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.nav-arrow:hover {
+    background: rgba(102, 126, 234, 1);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.nav-arrow-left {
+    left: 20px;
+}
+
+.nav-arrow-right {
+    right: 20px;
+}
+
+@media (max-width: 768px) {
+    .nav-arrow {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+    
+    .nav-arrow-left {
+        left: 10px;
+    }
+    
+    .nav-arrow-right {
+        right: 10px;
+    }
 } 

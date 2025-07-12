@@ -253,9 +253,12 @@ function displayCards() {
     const filteredCards = filterCards();
     
     if (viewMode === 'stacked') {
-        // Display stacked cards
+        // In stacked mode, show mini-fanned stacks for cards with duplicates
+        // and regular individual cards for singles
         filteredCards.forEach((card, index) => {
-            const cardElement = createStackedCard(card, index);
+            const cardElement = card.total_cards > 1 ? 
+                createMiniFannedStack(card, index) : 
+                createDatabaseCard(card, index);
             cardsGrid.appendChild(cardElement);
         });
     } else {
@@ -264,6 +267,176 @@ function displayCards() {
             const cardElement = createDatabaseCard(card, index);
             cardsGrid.appendChild(cardElement);
         });
+    }
+}
+
+// Create a mini-fanned stack for cards with duplicates in gallery view
+function createMiniFannedStack(card, index) {
+    const cardDiv = document.createElement('div');
+    cardDiv.className = `card-item mini-fanned-stack color-border-${getColorBorder(card.colors)}`;
+    cardDiv.onclick = () => showStackSpreadOverlay(index);
+    
+    // Create stack count badge
+    const stackBadge = `<div class="stack-count-badge">${card.total_cards}</div>`;
+    
+    // Create example badge if it's an example card
+    const exampleBadge = card.is_example ? 
+        '<div class="example-badge">EXAMPLE</div>' : '';
+    
+    cardDiv.innerHTML = `
+        <div class="card-image mini-fan-container">
+            <div class="mini-fan-card mini-fan-back"></div>
+            <div class="mini-fan-card mini-fan-middle"></div>
+            <div class="mini-fan-card mini-fan-front">
+                ${card.image_url ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
+            </div>
+            ${stackBadge}
+            ${exampleBadge}
+        </div>
+        <div class="card-info">
+            <div class="card-name">${card.name}</div>
+            <div class="card-set">${card.set_name || 'Unknown Set'}</div>
+            <div class="card-prices">
+                <span class="price price-usd">
+                    <i class="fas fa-dollar-sign"></i>
+                    $${(card.price_usd || 0).toFixed(2)}
+                </span>
+                <span class="price price-eur">
+                    <i class="fas fa-euro-sign"></i>
+                    €${(card.price_eur || 0).toFixed(2)}
+                </span>
+            </div>
+            <div class="card-count">Stack (${card.total_cards})</div>
+        </div>
+    `;
+    
+    return cardDiv;
+}
+
+// Show stack spread overlay (replaces the fan modal)
+function showStackSpreadOverlay(index) {
+    const card = cards[index];
+    if (!card) return;
+    
+    currentCardIndex = index;
+    
+    // Create spread overlay
+    const spreadOverlay = document.createElement('div');
+    spreadOverlay.id = 'spreadOverlay';
+    spreadOverlay.className = 'spread-overlay';
+    
+    // Create spread content
+    const spreadContent = document.createElement('div');
+    spreadContent.className = 'spread-content';
+    
+    // Create header
+    const spreadHeader = document.createElement('div');
+    spreadHeader.className = 'spread-header';
+    spreadHeader.innerHTML = `
+        <h3>${card.name} - Stack (${card.total_cards} cards)</h3>
+        <button class="close-btn" onclick="closeSpreadOverlay()">×</button>
+    `;
+    
+    // Create grid container
+    const spreadGrid = document.createElement('div');
+    spreadGrid.className = 'spread-grid';
+    
+    // Add cards to grid
+    if (card.duplicates && card.duplicates.length > 0) {
+        card.duplicates.forEach((duplicate, idx) => {
+            const spreadCard = createSpreadCard(duplicate, card, idx);
+            spreadGrid.appendChild(spreadCard);
+        });
+    } else {
+        // Single card in stack
+        const spreadCard = createSpreadCard(card, card, 0);
+        spreadGrid.appendChild(spreadCard);
+    }
+    
+    // Assemble overlay
+    spreadContent.appendChild(spreadHeader);
+    spreadContent.appendChild(spreadGrid);
+    spreadOverlay.appendChild(spreadContent);
+    
+    // Add to document
+    document.body.appendChild(spreadOverlay);
+    
+    // Add click outside to close
+    spreadOverlay.onclick = (e) => {
+        if (e.target === spreadOverlay) {
+            closeSpreadOverlay();
+        }
+    };
+    
+    // Add escape key handler
+    document.addEventListener('keydown', handleSpreadEscape);
+}
+
+// Create a spread card element for the grid overlay
+function createSpreadCard(cardData, parentCard, index) {
+    const spreadCard = document.createElement('div');
+    spreadCard.className = `spread-card color-border-${getColorBorder(parentCard.colors)}`;
+    
+    // Add example indicator
+    const exampleBadge = cardData.is_example ? '<span class="example-badge">EXAMPLE</span>' : '';
+    
+    spreadCard.innerHTML = `
+        <div class="card-image">
+            ${parentCard.image_url ? `<img src="${parentCard.image_url}" alt="${parentCard.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
+            ${exampleBadge}
+        </div>
+        <div class="card-info">
+            <div class="card-name">${parentCard.name}</div>
+            <div class="card-condition">Condition: ${cardData.condition || 'Unknown'}</div>
+            <div class="card-count">Count: ${cardData.count || 1}</div>
+        </div>
+    `;
+    
+    // Add click handler to show individual card details
+    spreadCard.onclick = (e) => {
+        e.stopPropagation();
+        showIndividualCardFromSpread(cardData, parentCard);
+    };
+    
+    return spreadCard;
+}
+
+// Show individual card details from spread (closes spread and opens card modal)
+function showIndividualCardFromSpread(cardData, parentCard) {
+    // Close spread overlay
+    closeSpreadOverlay();
+    
+    // Create a combined card object for the modal
+    const combinedCard = {
+        ...parentCard,
+        id: cardData.id,
+        count: cardData.count,
+        condition: cardData.condition,
+        notes: cardData.notes,
+        is_example: cardData.is_example,
+        first_seen: cardData.first_seen,
+        last_seen: cardData.last_seen
+    };
+    
+    // Show card details modal
+    modalTitle.textContent = combinedCard.name;
+    modalBody.innerHTML = createEnhancedCardDetailHTML(combinedCard, 0, 1);
+    cardModal.style.display = 'block';
+}
+
+// Close spread overlay
+function closeSpreadOverlay() {
+    const spreadOverlay = document.getElementById('spreadOverlay');
+    if (spreadOverlay) {
+        document.removeEventListener('keydown', handleSpreadEscape);
+        spreadOverlay.remove();
+    }
+}
+
+// Handle escape key for spread overlay
+function handleSpreadEscape(e) {
+    if (e.key === 'Escape') {
+        closeSpreadOverlay();
     }
 }
 
@@ -321,45 +494,7 @@ function createDatabaseCard(card, index) {
     return cardDiv;
 }
 
-// Create a stacked card element
-function createStackedCard(card, index) {
-    const cardDiv = document.createElement('div');
-    cardDiv.className = `card-item stacked-card color-border-${getColorBorder(card.colors)}`;
-    cardDiv.onclick = () => showStackedCardDetails(index);
-    
-    // Create stack count badge if there are multiple cards
-    const stackBadge = card.total_cards > 1 ? 
-        `<div class="stack-count-badge">${card.stack_count}</div>` : '';
-    
-    // Create example badge if it's an example card
-    const exampleBadge = card.is_example ? 
-        '<div class="example-badge">EXAMPLE</div>' : '';
-    
-    cardDiv.innerHTML = `
-        <div class="card-image">
-            ${card.image_url ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
-            ${stackBadge}
-            ${exampleBadge}
-        </div>
-        <div class="card-info">
-            <div class="card-name">${card.name}</div>
-            <div class="card-set">${card.set_name || 'Unknown Set'}</div>
-            <div class="card-prices">
-                <span class="price price-usd">
-                    <i class="fas fa-dollar-sign"></i>
-                    $${(card.price_usd || 0).toFixed(2)}
-                </span>
-                <span class="price price-eur">
-                    <i class="fas fa-euro-sign"></i>
-                    €${(card.price_eur || 0).toFixed(2)}
-                </span>
-            </div>
-            <div class="card-count">${card.total_cards > 1 ? `Stack (${card.total_cards})` : `Count: ${card.stack_count}`}</div>
-        </div>
-    `;
-    
-    return cardDiv;
-}
+
 
 // Filter cards based on search term
 function filterCards() {
@@ -411,93 +546,107 @@ function showCardDetails(cardIndex) {
     modalTitle.textContent = card.name;
     modalBody.innerHTML = createEnhancedCardDetailHTML(card, cardIndex, filteredCards.length);
     
+    // Add navigation arrows
+    addNavigationArrows();
+    
     cardModal.style.display = 'block';
 }
 
-// Show stacked card details in fan-out overlay
-function showStackedCardDetails(index) {
-    const card = cards[index];
-    if (!card) return;
+// Add navigation arrows to the modal
+function addNavigationArrows() {
+    // Remove existing arrows
+    const existingArrows = document.querySelectorAll('.nav-arrow');
+    existingArrows.forEach(arrow => arrow.remove());
     
-    currentCardIndex = index;
+    const filteredCards = filterCards();
     
-    // Set the fan title
-    document.getElementById('fanTitle').textContent = `${card.name} - Stack (${card.total_cards} cards)`;
-    
-    // Create fanned cards
-    const fanContainer = document.getElementById('fanContainer');
-    fanContainer.innerHTML = '';
-    fanContainer.setAttribute('data-count', card.duplicates ? card.duplicates.length : 1);
-    
-    if (card.duplicates && card.duplicates.length > 0) {
-        card.duplicates.forEach((duplicate, idx) => {
-            const fanCard = createFanCard(duplicate, card, idx);
-            fanContainer.appendChild(fanCard);
-        });
-    } else {
-        // Single card in stack
-        const fanCard = createFanCard(card, card, 0);
-        fanContainer.appendChild(fanCard);
+    // Left arrow
+    if (currentCardIndex > 0) {
+        const leftArrow = document.createElement('div');
+        leftArrow.className = 'nav-arrow nav-arrow-left';
+        leftArrow.innerHTML = '<i class="fas fa-chevron-left"></i>';
+        leftArrow.onclick = () => navigateCard(-1);
+        cardModal.appendChild(leftArrow);
     }
     
-    // Show fan overlay
-    document.getElementById('fanOverlay').style.display = 'block';
+    // Right arrow
+    if (currentCardIndex < filteredCards.length - 1) {
+        const rightArrow = document.createElement('div');
+        rightArrow.className = 'nav-arrow nav-arrow-right';
+        rightArrow.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        rightArrow.onclick = () => navigateCard(1);
+        cardModal.appendChild(rightArrow);
+    }
 }
 
-// Create a fanned card element
-function createFanCard(cardData, parentCard, index) {
-    const fanCard = document.createElement('div');
-    fanCard.className = `fan-card color-border-${getColorBorder(parentCard.colors)}`;
+// Navigate between cards (respects stacking toggle)
+function navigateCard(direction) {
+    const filteredCards = filterCards();
+    const newIndex = currentCardIndex + direction;
     
-    // Add example indicator
-    const exampleBadge = cardData.is_example ? '<span class="example-badge">EXAMPLE</span>' : '';
-    
-    fanCard.innerHTML = `
-        <div class="card-image">
-            ${parentCard.image_url ? `<img src="${parentCard.image_url}" alt="${parentCard.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
-            ${exampleBadge}
-        </div>
-        <div class="card-info">
-            <div class="card-name">${parentCard.name}</div>
-            <div class="card-condition">Condition: ${cardData.condition || 'Unknown'}</div>
-        </div>
-    `;
-    
-    // Add click handler to show individual card details
-    fanCard.onclick = (e) => {
-        e.stopPropagation();
-        showIndividualCardFromFan(cardData, parentCard);
-    };
-    
-    return fanCard;
+    if (newIndex >= 0 && newIndex < filteredCards.length) {
+        currentCardIndex = newIndex;
+        const card = filteredCards[currentCardIndex];
+        
+        modalTitle.textContent = card.name;
+        modalBody.innerHTML = createEnhancedCardDetailHTML(card, currentCardIndex, filteredCards.length);
+        
+        // Update navigation arrows
+        addNavigationArrows();
+    }
 }
 
-// Show individual card details from fan (closes fan and opens card modal)
-function showIndividualCardFromFan(cardData, parentCard) {
-    // Close fan overlay
-    closeFanOverlay();
-    
-    // Create a combined card object for the modal
-    const combinedCard = {
-        ...parentCard,
-        id: cardData.id,
-        count: cardData.count,
-        condition: cardData.condition,
-        notes: cardData.notes,
-        is_example: cardData.is_example,
-        first_seen: cardData.first_seen,
-        last_seen: cardData.last_seen
-    };
-    
-    // Show card details modal
-    modalTitle.textContent = combinedCard.name;
-    modalBody.innerHTML = createEnhancedCardDetailHTML(combinedCard, 0, 1);
-    cardModal.style.display = 'block';
+// Close modal
+function closeModal() {
+    cardModal.style.display = 'none';
 }
 
-// Close fan overlay
-function closeFanOverlay() {
-    document.getElementById('fanOverlay').style.display = 'none';
+// Show/hide loading overlay
+function showLoading(show) {
+    loadingOverlay.style.display = show ? 'block' : 'none';
+}
+
+// Show upload progress
+function showUploadProgress() {
+    uploadProgress.style.display = 'block';
+}
+
+// Hide upload progress
+function hideUploadProgress() {
+    uploadProgress.style.display = 'none';
+}
+
+// Update progress bar
+function updateProgress(percent, text) {
+    progressFill.style.width = `${percent}%`;
+    progressText.textContent = text;
+}
+
+// Add test data with real Magic cards
+async function addTestData() {
+    // This function is called on page load to add some test data
+    // In a real application, this would be removed
+    console.log('Test data loaded');
+}
+
+// Update stats display
+function updateStats(data) {
+    const totalCardsElement = document.getElementById('totalCards');
+    const totalCountElement = document.getElementById('totalCount');
+    const totalValueElement = document.getElementById('totalValue');
+    
+    if (viewMode === 'stacked') {
+        totalCardsElement.textContent = data.total_stacks || 0;
+        const totalCount = cards.reduce((sum, card) => sum + (card.stack_count || 0), 0);
+        totalCountElement.textContent = totalCount;
+    } else {
+        totalCardsElement.textContent = data.total_cards || 0;
+        const totalCount = cards.reduce((sum, card) => sum + (card.count || 0), 0);
+        totalCountElement.textContent = totalCount;
+    }
+    
+    const totalValue = cards.reduce((sum, card) => sum + (card.price_usd || 0), 0);
+    totalValueElement.textContent = `$${totalValue.toFixed(2)}`;
 }
 
 // Standardized grading options with user-friendly names
@@ -856,69 +1005,6 @@ async function deleteCard(cardId) {
         console.error('Error deleting card:', error);
         alert('Error deleting card');
     }
-}
-
-// Navigate between cards
-function navigateCard(direction) {
-    const filteredCards = filterCards();
-    const newIndex = currentCardIndex + direction;
-    
-    if (newIndex >= 0 && newIndex < filteredCards.length) {
-        showCardDetails(newIndex);
-    }
-}
-
-// Close modal
-function closeModal() {
-    cardModal.style.display = 'none';
-}
-
-// Show/hide loading overlay
-function showLoading(show) {
-    loadingOverlay.style.display = show ? 'block' : 'none';
-}
-
-// Show upload progress
-function showUploadProgress() {
-    uploadProgress.style.display = 'block';
-}
-
-// Hide upload progress
-function hideUploadProgress() {
-    uploadProgress.style.display = 'none';
-}
-
-// Update progress bar
-function updateProgress(percent, text) {
-    progressFill.style.width = `${percent}%`;
-    progressText.textContent = text;
-}
-
-// Add test data with real Magic cards
-async function addTestData() {
-    // This function is called on page load to add some test data
-    // In a real application, this would be removed
-    console.log('Test data loaded');
-}
-
-// Update stats display
-function updateStats(data) {
-    const totalCardsElement = document.getElementById('totalCards');
-    const totalCountElement = document.getElementById('totalCount');
-    const totalValueElement = document.getElementById('totalValue');
-    
-    if (viewMode === 'stacked') {
-        totalCardsElement.textContent = data.total_stacks || 0;
-        const totalCount = cards.reduce((sum, card) => sum + (card.stack_count || 0), 0);
-        totalCountElement.textContent = totalCount;
-    } else {
-        totalCardsElement.textContent = data.total_cards || 0;
-        const totalCount = cards.reduce((sum, card) => sum + (card.count || 0), 0);
-        totalCountElement.textContent = totalCount;
-    }
-    
-    const totalValue = cards.reduce((sum, card) => sum + (card.price_usd || 0), 0);
-    totalValueElement.textContent = `$${totalValue.toFixed(2)}`;
 }
 
 // Add some CSS for card details
