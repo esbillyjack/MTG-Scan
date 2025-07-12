@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Magic Card Scanner</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/static/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -47,31 +47,35 @@
 
             <!-- Database Section -->
             <section class="database-section">
-                <div class="section-header">
-                    <h2><i class="fas fa-database"></i> Card Database</h2>
-                    <div class="stats" id="stats">
-                        <div class="stat">
-                            <span class="stat-number" id="totalCards">0</span>
-                            <span class="stat-label">Cards</span>
+                <div class="stats" id="stats">
+                    <div class="stat">
+                        <span class="stat-number" id="totalCards">0</span>
+                        <span class="stat-label">Cards</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" id="totalCount">0</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" id="totalValue">$0</span>
+                        <span class="stat-label">Value</span>
+                    </div>
+                </div>
+                <div class="gallery-header">
+                    <h2><i class="fas fa-database"></i> Your Collection</h2>
+                    <div class="gallery-controls">
+                        <div class="search-container">
+                            <input type="text" id="searchInput" placeholder="Search cards...">
                         </div>
-                        <div class="stat">
-                            <span class="stat-number" id="totalCount">0</span>
-                            <span class="stat-label">Total</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-number" id="totalValue">$0</span>
-                            <span class="stat-label">Value</span>
+                        <div class="view-toggle">
+                            <span class="toggle-label">Stack Duplicates</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="stackToggle">
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
-                
-                <div class="controls">
-                    <input type="text" id="searchInput" placeholder="Search cards..." class="search-input">
-                    <button class="refresh-btn" onclick="loadCards()">
-                        <i class="fas fa-sync-alt"></i> Refresh
-                    </button>
-                </div>
-                
                 <div class="cards-grid" id="cardsGrid"></div>
             </section>
         </main>
@@ -98,8 +102,23 @@
                 <p>Processing...</p>
             </div>
         </div>
+
+        <!-- Fan-out Overlay for Stacked Cards -->
+        <div class="fan-overlay" id="fanOverlay">
+            <div class="fan-overlay-content">
+                <div class="fan-header">
+                    <h3 id="fanTitle">Card Stack</h3>
+                    <button class="close-btn" onclick="closeFanOverlay()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="fan-container" id="fanContainer">
+                    <!-- Fanned cards will be populated here -->
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html> 

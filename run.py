@@ -50,7 +50,7 @@ def check_dependencies():
         import openai
         import sqlalchemy
         import requests
-        import pillow
+        import PIL
         return True
     except ImportError as e:
         print(f"Missing dependency: {e}")
@@ -101,7 +101,7 @@ def main():
         from app import app
         import uvicorn
         
-        uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+        uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
     except KeyboardInterrupt:
         print("\nServer stopped.")
     except Exception as e:
