@@ -1306,10 +1306,10 @@ async def update_scan_result_set(result_id: int, set_data: dict, db: Session = D
 
 @app.get("/scan/history")
 async def get_scan_history(db: Session = Depends(get_db)):
-    """Get all scan history with images and cards found"""
+    """Get all scan history with images and cards found (excluding cancelled scans)"""
     try:
-        # Get all scans ordered by newest first
-        scans = db.query(Scan).order_by(Scan.created_at.desc()).all()
+        # Get all scans ordered by newest first, excluding cancelled scans
+        scans = db.query(Scan).filter(Scan.status != "CANCELLED").order_by(Scan.created_at.desc()).all()
         
         scan_history = []
         for scan in scans:

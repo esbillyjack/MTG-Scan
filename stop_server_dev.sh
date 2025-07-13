@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Magic Card Scanner - Development Server Stop Script
-# This script stops the development server running on port 8001
 
 echo "🛑 Stopping Magic Card Scanner Development Server..."
 
@@ -12,41 +11,29 @@ cd "$(dirname "$0")"
 if [ -f "logs/server_dev.pid" ]; then
     PID=$(cat logs/server_dev.pid)
     
-    # Check if process is running
-    if kill -0 $PID 2>/dev/null; then
-        echo "📋 Found development server with PID: $PID"
+    # Check if process is still running
+    if ps -p $PID > /dev/null 2>&1; then
+        echo "Found development server running with PID: $PID"
         
-        # Stop the process
+        # Try graceful shutdown first
         kill $PID
         
-        # Wait for process to stop
+        # Wait a bit and check if it's still running
         sleep 2
-        
-        # Check if it's still running
-        if kill -0 $PID 2>/dev/null; then
-            echo "⚠️  Process still running, force killing..."
+        if ps -p $PID > /dev/null 2>&1; then
+            echo "Process still running, forcing shutdown..."
             kill -9 $PID
-            sleep 1
         fi
         
-        # Remove PID file
-        rm logs/server_dev.pid
-        
-        echo "✅ Development server stopped successfully"
+        echo "✅ Development server stopped"
     else
-        echo "⚠️  Development server not running (PID $PID not found)"
-        rm logs/server_dev.pid
+        echo "⚠️ Development server process not found (PID: $PID)"
     fi
+    
+    # Clean up PID file
+    rm -f logs/server_dev.pid
 else
-    echo "⚠️  No development server PID file found"
+    echo "ℹ️ No development server PID file found"
 fi
 
-# Also check for any processes on port 8001
-DEV_PROCESSES=$(lsof -ti:8001 2>/dev/null)
-if [ ! -z "$DEV_PROCESSES" ]; then
-    echo "🔍 Found processes on port 8001, stopping them..."
-    echo $DEV_PROCESSES | xargs kill -9
-    echo "✅ Processes on port 8001 stopped"
-fi
-
-echo "🏁 Development server shutdown complete" 
+echo "🔍 Development server status: Stopped" 

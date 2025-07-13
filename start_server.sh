@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Magic Card Scanner - Server Startup Script
-# This script runs the server as a background service that persists through sleep/lock
+# Magic Card Scanner - Production Server Startup Script
+# This script runs the production server from the production directory
 
 echo "🚀 Starting Magic Card Scanner Production Server..."
 
-# Change to project directory
+# Change to project directory (we're already in production directory)
 cd "$(dirname "$0")"
 
 # Activate virtual environment

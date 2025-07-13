@@ -1,0 +1,17 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/api/environment"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[environments.production]
+ENV_MODE = "production"
+PORT = "8000"
+
+[environments.staging]
+ENV_MODE = "staging"
+PORT = "8000" 
