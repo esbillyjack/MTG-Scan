@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Magic Card Scanner</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2025011303">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -71,6 +71,12 @@
                             <div class="tools-dropdown" id="toolsDropdown">
                                 <button class="tool-item" onclick="showScanHistory()">
                                     <i class="fas fa-history"></i> Scan History
+                                </button>
+                                <button class="tool-item" onclick="showUnknownSetsReview()">
+                                    <i class="fas fa-question-circle"></i> Review Unknown Sets
+                                </button>
+                                <button class="tool-item" onclick="showAILogs()">
+                                    <i class="fas fa-brain"></i> AI Service Logs
                                 </button>
                                 <!-- More tools can be added here -->
                             </div>
@@ -139,6 +145,42 @@
             </div>
         </div>
 
+        <!-- Unknown Sets Review Modal -->
+        <div class="modal" id="unknownSetsModal">
+            <div class="modal-content unknown-sets-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-question-circle"></i> Review Unknown Sets</h3>
+                    <button class="close-btn" onclick="closeUnknownSetsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="unknownSetsBody">
+                    <div class="unknown-sets-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading cards with unknown sets...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Service Logs Modal -->
+        <div class="modal" id="aiLogsModal">
+            <div class="modal-content ai-logs-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-brain"></i> AI Service Logs</h3>
+                    <button class="close-btn" onclick="closeAILogsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="aiLogsBody">
+                    <div class="ai-logs-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading AI service status...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Loading Overlay -->
         <div class="loading-overlay" id="loadingOverlay">
             <div class="loading-spinner">
@@ -163,6 +205,6 @@
         </div>
     </div>
 
-    <script src="/static/script.js"></script>
+    <script src="/static/script.js?v=2025011303"></script>
 </body>
 </html> 

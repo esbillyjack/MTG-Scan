@@ -111,6 +111,9 @@ class ScanResult(Base):
     # Full card data from Scryfall as JSON
     card_data = Column(Text, nullable=True)  # JSON string of full card data
     
+    # Raw AI response for debugging/review
+    ai_raw_response = Column(Text, nullable=True)  # Raw text response from AI API
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     decided_at = Column(DateTime, nullable=True)  # When user made accept/reject decision

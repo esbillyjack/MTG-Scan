@@ -2,17 +2,23 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from typing import List, Dict, Any
 import os
 import shutil
 from datetime import datetime
 import aiofiles
 import uuid
+import logging
 
 from database import get_db, init_db, Card, Scan, ScanImage, ScanResult
 from ai_processor import CardRecognitionAI
 from price_api import ScryfallAPI
+from image_quality_validator import ImageQualityValidator
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(title="Magic Card Scanner", version="1.0.0")
@@ -32,7 +38,7 @@ init_db()
 try:
     ai_processor = CardRecognitionAI()
 except ValueError as e:
-    print(f"Warning: AI processor not available: {e}")
+    logger.error(f"AI processor not available: {e}")
     ai_processor = None
 
 @app.get("/", response_class=HTMLResponse)
@@ -159,7 +165,7 @@ async def upload_and_scan(files: List[UploadFile] = File(...), db: Session = Dep
         raise HTTPException(status_code=400, detail="No files provided")
     
     # Validate that at least one file is an image
-    valid_files = [f for f in files if f.content_type and f.content_type.startswith("image/")]
+    valid_files = [f for f in files if f.content_type is not None and f.content_type.startswith("image/")]
     if not valid_files:
         raise HTTPException(status_code=400, detail="No valid image files provided")
     
@@ -277,16 +283,23 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
                 "last_seen": card.last_seen.isoformat() if card.last_seen else None
             })
         
-        return {
+        result = {
             "view_mode": "stacked",
             "total_stacks": len(grouped_cards),
             "cards": list(grouped_cards.values())
         }
+        
+        # Debug logging: Print sample card data being sent to frontend
+        if grouped_cards:
+            sample_card = list(grouped_cards.values())[0]
+            logger.info(f"🎯 FRONTEND DEBUG: Sample stacked card data sent to frontend: name='{sample_card['name']}', set_code='{sample_card['set_code']}', set_name='{sample_card['set_name']}'")
+        
+        return result
     else:
         # Return individual cards
         cards = db.query(Card).filter(Card.deleted == False).order_by(Card.name).all()
         
-        return {
+        result = {
             "view_mode": "individual",
             "total_cards": len(cards),
             "cards": [
@@ -322,6 +335,56 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
                 for card in cards
             ]
         }
+        
+        # Debug logging: Print sample card data being sent to frontend
+        if cards:
+            sample_card = cards[0]
+            logger.info(f"🎯 FRONTEND DEBUG: Sample individual card data sent to frontend: name='{sample_card.name}', set_code='{sample_card.set_code}', set_name='{sample_card.set_name}'")
+        
+        return result
+
+@app.get("/cards/unknown-sets")
+async def get_cards_with_unknown_sets(db: Session = Depends(get_db)):
+    """Get all cards that have unknown or missing set information"""
+    try:
+        # Query for cards with missing or unknown set information
+        cards = db.query(Card).filter(
+            Card.deleted == False,
+            or_(
+                Card.set_name == None,
+                Card.set_name == '',
+                Card.set_name.like('%unknown%'),
+                Card.set_name.like('%not found%'),
+                Card.set_code == None,
+                Card.set_code == '',
+                Card.set_code.like('%unknown%')
+            )
+        ).order_by(Card.name).all()
+        
+        # Convert to dictionaries for JSON response
+        cards_data = []
+        for card in cards:
+            card_dict = {
+                'id': card.id,
+                'name': card.name,
+                'set_name': card.set_name or 'Unknown',
+                'set_code': card.set_code or 'UNK',
+                'image_url': card.image_url,
+                'first_seen': card.first_seen.isoformat() if card.first_seen else None,
+                'added_method': card.added_method or 'LEGACY',
+                'scan_id': getattr(card, 'scan_id', None)  # Handle missing scan_id gracefully
+            }
+            cards_data.append(card_dict)
+        
+        return {
+            "success": True,
+            "cards": cards_data,
+            "count": len(cards_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting cards with unknown sets: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting cards with unknown sets: {str(e)}")
 
 @app.get("/cards/{card_id}")
 async def get_card(card_id: int, db: Session = Depends(get_db)):
@@ -332,6 +395,7 @@ async def get_card(card_id: int, db: Session = Depends(get_db)):
     
     return {
         "id": card.id,
+        "unique_id": card.unique_id,
         "name": card.name,
         "set_code": card.set_code,
         "set_name": card.set_name,
@@ -584,6 +648,7 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                         
                         # Create scan result
                         import json
+                        import ast
                         scan_result = ScanResult(
                             scan_id=scan_id,
                             scan_image_id=scan_image.id,
@@ -593,7 +658,8 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                             collector_number=scryfall_data.get('collector_number', '') if scryfall_data else enhanced_card.get('collector_number', ''),
                             confidence_score=enhanced_card.get('confidence_score', 0.0),
                             status="PENDING",
-                            card_data=json.dumps(scryfall_data) if scryfall_data else json.dumps(enhanced_card)
+                            card_data=json.dumps(scryfall_data) if scryfall_data else json.dumps(enhanced_card),
+                            ai_raw_response=ai_processor.get_last_raw_response()  # Store raw AI response
                         )
                         db.add(scan_result)
                         total_cards_found += 1
@@ -608,7 +674,21 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                 processed_images += 1
                 
             except Exception as e:
-                scan_image.processing_error = str(e)
+                error_msg = str(e)
+                logger.error(f"Error processing scan image {scan_image.id}: {error_msg}")
+                scan_image.processing_error = error_msg
+                
+                # Check if this is an AI service error
+                if ai_processor:
+                    last_error = ai_processor.get_last_error()
+                    if last_error:
+                        logger.warning(f"AI service error details - Type: {last_error.error_type}, "
+                                     f"Quota: {last_error.is_quota_error}, "
+                                     f"Rate limit: {last_error.is_rate_limit}")
+                        
+                        # Update scan notes with error details for persistent tracking
+                        if last_error.is_quota_error or last_error.is_rate_limit:
+                            scan.notes = f"API Error: {last_error.error_type} - {last_error.message}"
         
         # Update scan with results
         scan.processed_images = processed_images
@@ -841,8 +921,15 @@ async def commit_scan(scan_id: int, db: Session = Depends(get_db)):
                         # If both fail, use empty dict
                         card_data = {}
             
-            # Create duplicate group identifier using set_name instead of set_code to handle API inconsistencies
-            duplicate_group = f"{result.card_name}|{result.set_name}|{result.collector_number}"
+            # Create duplicate group identifier - prioritize card_data for consistency
+            set_name_for_group = card_data.get('set_name') or result.set_name or ''
+            collector_number_for_group = card_data.get('collector_number') or result.collector_number or ''
+            duplicate_group = f"{result.card_name}|{set_name_for_group}|{collector_number_for_group}"
+            
+            # Debug logging for set information
+            logger.info(f"Creating card '{result.card_name}' with set info: "
+                       f"set_code='{card_data.get('set_code') or result.set_code or ''}', "
+                       f"set_name='{card_data.get('set_name') or result.set_name or ''}'")
             
             # Check for existing cards in this group
             existing_cards = db.query(Card).filter(Card.duplicate_group == duplicate_group, Card.deleted == False).all()
@@ -856,12 +943,12 @@ async def commit_scan(scan_id: int, db: Session = Depends(get_db)):
             else:
                 stack_id = str(uuid.uuid4())
             
-            # Create new card
+            # Create new card - prioritize card_data for set info, fallback to result fields
             new_card = Card(
                 name=result.card_name,
-                set_code=result.set_code,
-                set_name=result.set_name,
-                collector_number=result.collector_number,
+                set_code=card_data.get('set_code') or result.set_code or '',
+                set_name=card_data.get('set_name') or result.set_name or '',
+                collector_number=card_data.get('collector_number') or result.collector_number or '',
                 rarity=card_data.get('rarity', ''),
                 mana_cost=card_data.get('mana_cost', ''),
                 type_line=card_data.get('type_line', ''),
@@ -1049,6 +1136,39 @@ async def get_scan_details(scan_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error getting scan details: {str(e)}")
 
 
+@app.put("/scan/result/{result_id}/set")
+async def update_scan_result_set(result_id: int, set_data: dict, db: Session = Depends(get_db)):
+    """Update the set information for a scan result"""
+    try:
+        # Get the scan result
+        scan_result = db.query(ScanResult).filter(ScanResult.id == result_id).first()
+        if not scan_result:
+            raise HTTPException(status_code=404, detail="Scan result not found")
+        
+        # Update the set information
+        scan_result.set_code = set_data.get('set_code', '')
+        scan_result.set_name = set_data.get('set_name', '')
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Updated scan result {result_id} set to {set_data.get('set_name')}",
+            "result": {
+                "id": scan_result.id,
+                "set_code": scan_result.set_code,
+                "set_name": scan_result.set_name
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error updating scan result set: {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating scan result set: {str(e)}")
+
+
+
+
+
 @app.get("/scan/history")
 async def get_scan_history(db: Session = Depends(get_db)):
     """Get all scan history with images and cards found"""
@@ -1105,8 +1225,253 @@ async def get_scan_history(db: Session = Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"Error getting scan history: {e}")
+        logger.error(f"Error getting scan history: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting scan history: {str(e)}")
+
+
+@app.get("/debug/ai-health")
+async def get_ai_health():
+    """Check AI processor health status"""
+    if ai_processor is None:
+        return {"status": "unavailable", "error": "AI processor not initialized"}
+    
+    try:
+        # Check if OpenAI API key is available
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {"status": "error", "error": "OpenAI API key not found"}
+        
+        # Check last error
+        last_error = ai_processor.get_last_error()
+        error_info = last_error.to_dict() if last_error else None
+        
+        return {
+            "status": "healthy",
+            "api_key_present": bool(api_key),
+            "last_error": error_info,
+            "rate_limit_interval": ai_processor.min_call_interval
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/debug/ai-errors")
+async def get_ai_errors():
+    """Get recent AI processing errors"""
+    if ai_processor is None:
+        return {"error": "AI processor not available"}
+    
+    last_error = ai_processor.get_last_error()
+    if last_error:
+        return {
+            "has_errors": True,
+            "last_error": last_error.to_dict()
+        }
+    else:
+        return {"has_errors": False}
+
+@app.get("/debug/ai-logs-full")
+async def get_ai_logs_full():
+    """Get complete AI service logs"""
+    import logging
+    import io
+    
+    try:
+        # Get the logger and its handlers
+        ai_logger = logging.getLogger('ai_processor')
+        app_logger = logging.getLogger(__name__)
+        
+        logs_content = []
+        
+        # Add AI processor information
+        if ai_processor:
+            logs_content.append("=== AI PROCESSOR STATUS ===")
+            logs_content.append(f"Model: gpt-4o")
+            logs_content.append(f"Last API Call: {ai_processor.last_api_call}")
+            logs_content.append(f"Min Call Interval: {ai_processor.min_call_interval}")
+            
+            # Add last error if available
+            last_error = ai_processor.get_last_error() if hasattr(ai_processor, 'get_last_error') else None
+            if last_error:
+                logs_content.append("\n=== LAST ERROR ===")
+                logs_content.append(f"Type: {last_error.error_type}")
+                logs_content.append(f"Message: {last_error.message}")
+                logs_content.append(f"Timestamp: {last_error.timestamp}")
+                logs_content.append(f"Quota Error: {last_error.is_quota_error}")
+                logs_content.append(f"Rate Limit: {last_error.is_rate_limit}")
+            
+            logs_content.append("\n=== SYSTEM INFORMATION ===")
+            logs_content.append(f"Server Time: {datetime.utcnow()}")
+            logs_content.append(f"Python Logger Level: {logging.getLogger().level}")
+            
+        else:
+            logs_content.append("AI Processor not available")
+        
+        return {
+            "success": True,
+            "logs": "\n".join(logs_content),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting full AI logs: {e}")
+        return {
+            "success": False,
+            "logs": f"Error retrieving logs: {str(e)}",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/scan/{scan_id}/info")
+async def get_scan_info(scan_id: int, db: Session = Depends(get_db)):
+    """Get scan information for rescanning"""
+    try:
+        # Get the scan record
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Get the first scan image (assuming single image per scan for rescan)
+        scan_image = db.query(ScanImage).filter(ScanImage.scan_id == scan_id).first()
+        if not scan_image:
+            raise HTTPException(status_code=404, detail="Scan image not found")
+        
+        return {
+            "scan_id": scan.id,
+            "image_filename": scan_image.filename,
+            "status": scan.status,
+            "created_at": scan.created_at
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting scan info: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting scan info: {str(e)}")
+
+
+@app.post("/validate/image-quality")
+async def validate_image_quality(file: UploadFile = File(...)):
+    """Validate image quality before AI processing"""
+    try:
+        # Save uploaded file temporarily
+        temp_filename = f"temp_validation_{uuid.uuid4().hex}.jpg"
+        temp_path = os.path.join("uploads", temp_filename)
+        
+        with open(temp_path, "wb") as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+        
+        # Initialize validator and validate image
+        validator = ImageQualityValidator()
+        validation_result = validator.validate_image(temp_path)
+        
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        return {
+            "filename": file.filename,
+            "validation": validation_result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        # Clean up temp file on error
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        logger.error(f"Error validating image quality: {e}")
+        raise HTTPException(status_code=500, detail=f"Error validating image: {str(e)}")
+
+
+@app.get("/guidelines/photo")
+async def get_photo_guidelines():
+    """Get mobile-friendly photo capture guidelines"""
+    try:
+        validator = ImageQualityValidator()
+        guidelines = validator.get_photo_guidelines()
+        
+        return {
+            "guidelines": guidelines,
+            "policies": {
+                "no_retries": "AI processing runs once per image - no automatic retries",
+                "set_symbol_validation": "Set symbols are cross-referenced with known sets for accuracy",
+                "collector_numbers": "Collector numbers are processed as-is without validation",
+                "confidence_scoring": "Confidence scores include set symbol correlation analysis"
+            },
+            "tips": [
+                "Use good lighting to avoid shadows and glare",
+                "Ensure cards are flat and not bent or curved", 
+                "Take photos from directly above or at slight angle",
+                "Use a contrasting background (dark for light cards, light for dark cards)",
+                "Allow some space around cards - don't crop too tightly",
+                "For multiple cards, arrange in a grid pattern with clear separation",
+                "Tap to focus on the cards before taking the photo",
+                "Hold camera steady or use a tripod for sharpest results"
+            ],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting photo guidelines: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting guidelines: {str(e)}")
+
+
+@app.get("/scan/policies")
+async def get_scan_policies():
+    """Get current scan processing policies"""
+    return {
+        "policies": {
+            "retry_policy": {
+                "enabled": False,
+                "description": "No automatic retries - AI processing runs once per image"
+            },
+            "set_symbol_correlation": {
+                "enabled": True,
+                "description": "Set symbols are validated against known set descriptions for confidence scoring"
+            },
+            "collector_number_processing": {
+                "validation": False,
+                "description": "Collector numbers are processed as-is without format validation"
+            },
+            "image_quality_checks": {
+                "enabled": True,
+                "description": "Images are validated for resolution, focus, and quality before processing"
+            }
+        },
+        "confidence_factors": [
+            "Card name clarity and completeness",
+            "Set information accuracy", 
+            "Set symbol correlation with known sets",
+            "Scryfall database match confirmation",
+            "Image quality metrics (sharpness, resolution)",
+            "AI self-reported confidence level"
+        ],
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/scan/{scan_id}/ai-response")
+async def get_scan_ai_response(scan_id: int, db: Session = Depends(get_db)):
+    """Get the raw AI response for a scan"""
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    # Get scan results with raw AI responses
+    scan_results = db.query(ScanResult).filter(ScanResult.scan_id == scan_id).first()
+    if not scan_results:
+        return {
+            "scan_id": scan_id,
+            "has_ai_response": False,
+            "message": "No AI response found for this scan"
+        }
+    
+    return {
+        "scan_id": scan_id,
+        "has_ai_response": bool(scan_results.ai_raw_response),
+        "ai_raw_response": scan_results.ai_raw_response or "No raw response stored",
+        "created_at": scan_results.created_at.isoformat() if scan_results.created_at else None,
+        "cards_found": len(db.query(ScanResult).filter(ScanResult.scan_id == scan_id).all())
+    }
 
 
 if __name__ == "__main__":

@@ -5,8 +5,34 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import json
 import re
+import time
+import logging
+from datetime import datetime
+from set_symbol_validator import SetSymbolValidator
 
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class APIError:
+    """Structure for API error information"""
+    def __init__(self, error_type: str, message: str, is_quota_error: bool = False, is_rate_limit: bool = False):
+        self.error_type = error_type
+        self.message = message
+        self.is_quota_error = is_quota_error
+        self.is_rate_limit = is_rate_limit
+        self.timestamp = datetime.utcnow()
+        
+    def to_dict(self):
+        return {
+            'error_type': self.error_type,
+            'message': self.message,
+            'is_quota_error': self.is_quota_error,
+            'is_rate_limit': self.is_rate_limit,
+            'timestamp': self.timestamp.isoformat()
+        }
 
 class CardRecognitionAI:
     """AI-powered Magic card recognition using OpenAI Vision API"""
@@ -17,6 +43,57 @@ class CardRecognitionAI:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         
         self.client = OpenAI(api_key=api_key)
+        self.last_api_call = 0
+        self.min_call_interval = 1  # Minimum seconds between API calls
+        self.symbol_validator = SetSymbolValidator()  # Initialize set symbol validator
+        self.last_raw_response = None  # Store the last raw AI response
+        
+    def _log_api_error(self, error: Exception, context: str = "AI processing") -> APIError:
+        """Log and categorize API errors"""
+        error_str = str(error)
+        
+        # Check for quota/rate limit errors
+        is_quota_error = any(keyword in error_str.lower() for keyword in [
+            'quota', 'exceeded', 'limit', 'insufficient', 'billing'
+        ])
+        
+        is_rate_limit = any(keyword in error_str.lower() for keyword in [
+            'rate limit', 'too many requests', 'rate_limit_exceeded'
+        ])
+        
+        # Determine error type
+        if 'model_not_found' in error_str or 'deprecated' in error_str:
+            error_type = "DEPRECATED_MODEL"
+        elif 'invalid_request_error' in error_str:
+            error_type = "INVALID_REQUEST"
+        elif is_quota_error:
+            error_type = "QUOTA_EXCEEDED"
+        elif is_rate_limit:
+            error_type = "RATE_LIMIT"
+        elif 'timeout' in error_str.lower():
+            error_type = "TIMEOUT"
+        else:
+            error_type = "UNKNOWN"
+            
+        api_error = APIError(error_type, error_str, is_quota_error, is_rate_limit)
+        
+        # Log with appropriate level
+        if is_quota_error or is_rate_limit:
+            logger.error(f"API {error_type} in {context}: {error_str}")
+        else:
+            logger.warning(f"API {error_type} in {context}: {error_str}")
+            
+        return api_error
+    
+    def _rate_limit_delay(self):
+        """Implement basic rate limiting"""
+        current_time = time.time()
+        time_since_last = current_time - self.last_api_call
+        if time_since_last < self.min_call_interval:
+            sleep_time = self.min_call_interval - time_since_last
+            logger.info(f"Rate limiting: waiting {sleep_time:.2f} seconds")
+            time.sleep(sleep_time)
+        self.last_api_call = time.time()
     
     def encode_image(self, image_path: str) -> str:
         """Encode image to base64 for API transmission"""
@@ -24,54 +101,61 @@ class CardRecognitionAI:
             return base64.b64encode(image_file.read()).decode('utf-8')
     
     def identify_cards(self, image_path: str) -> List[Dict[str, Any]]:
-        """Identify Magic cards in an image using AI vision"""
+        """Identify Magic cards in an image using AI vision - single attempt, no retries"""
         try:
+            logger.info(f"Making OpenAI API call for image: {image_path}")
+            
+            # Apply rate limiting
+            self._rate_limit_delay()
+            
             # Encode the image
             base64_image = self.encode_image(image_path)
-            
-            # Create the enhanced prompt for better set identification
+        
+            # Single optimized prompt
             prompt = """
-            Analyze this image and identify all Magic: The Gathering cards visible with detailed set information.
-            
-            For each card you identify, provide:
-            1. The EXACT card name (be as precise as possible)
-            2. Set information (look for set symbols, set names, or any visible set identifiers)
-            3. Collector number if visible (usually bottom left or right)
-            4. Any distinguishing features (foil, alternate art, special frame, etc.)
-            5. Copyright date if visible (helps identify set)
-            6. Any visible text that might indicate the set or version
-            
-            IMPORTANT SET IDENTIFICATION GUIDELINES:
-            - Look carefully for set symbols (small icons usually in the middle right)
-            - Check for copyright dates (e.g., "© 2019 Wizards of the Coast")
-            - Look for collector numbers (e.g., "123/264")
-            - Notice special frames or borders that indicate specific sets
-            - Check for any text mentioning set names
-            - Look for special markers like "M" for mythic rare
-            - Notice if it's a promo, foil, or special version
-            
-            COMMON SET CLUES:
-            - Modern cards often have holofoil stamps
-            - Older cards may have different frame styles
-            - Special sets may have unique borders or frames
-            - Promo cards often have "P" or star symbols
-            - Collector numbers help identify the specific set
-            
-            Return the results as a JSON array with objects containing:
-            {
-                "name": "exact card name",
-                "set": "set name or code if visible",
-                "collector_number": "collector number if visible",
-                "set_symbol_description": "description of any set symbol seen",
-                "copyright_year": "copyright year if visible",
-                "special_features": "any special features noted",
-                "confidence": "high/medium/low",
-                "notes": "any additional details that might help identify the correct version"
-            }
-            
-            If you cannot identify any cards, return an empty array.
-            Focus on accuracy - if you're unsure about set information, indicate that in the confidence level.
-            """
+You are helping me catalog my personal Magic: The Gathering card collection for inventory purposes.
+
+TASK: Analyze this image of Magic: The Gathering cards that I own and identify each card with detailed information.
+
+For each card you can see in the image, provide:
+1. The EXACT card name (be as precise as possible)
+2. Set information (look for set symbols, set names, or any visible set identifiers)
+3. Collector number if visible (usually bottom left or right)
+4. Any distinguishing features (foil, alternate art, special frame, etc.)
+5. Copyright date if visible (helps identify set)
+6. Any visible text that might indicate the set or version
+
+IMPORTANT SET IDENTIFICATION GUIDELINES:
+- Look carefully for set symbols (small icons usually in the middle right)
+- Check for copyright dates (e.g., "© 2019 Wizards of the Coast")
+- Look for collector numbers (e.g., "123/264")
+- Notice special frames or borders that indicate specific sets
+- Check for any text mentioning set names
+- Look for special markers like "M" for mythic rare
+- Notice if it's a promo, foil, or special version
+
+COMMON SET CLUES:
+- Modern cards often have holofoil stamps
+- Older cards may have different frame styles
+- Special sets may have unique borders or frames
+- Promo cards often have "P" or star symbols
+- Collector numbers help identify the specific set
+
+REQUIRED OUTPUT FORMAT - Return ONLY a JSON array with objects containing:
+{
+    "name": "exact card name",
+    "set": "set name or code if visible",
+    "collector_number": "collector number if visible",
+    "set_symbol_description": "description of any set symbol seen",
+    "copyright_year": "copyright year if visible",
+    "special_features": "any special features noted",
+    "confidence": "high/medium/low",
+    "notes": "any additional details that might help identify the correct version"
+}
+
+This is for personal inventory management of my own card collection. Please identify all visible cards in the image.
+If you cannot identify any cards clearly, return an empty array [].
+"""
             
             # Make the API call
             response = self.client.chat.completions.create(
@@ -97,18 +181,34 @@ class CardRecognitionAI:
             
             # Parse the response
             content = response.choices[0].message.content
+            logger.info(f"OpenAI API response received, content length: {len(content) if content else 0}")
+            
+            # Store the raw response for debugging
+            self.last_raw_response = content
+            
+            # Log the actual response content for debugging
+            if content:
+                logger.info(f"AI Response Content: {content[:500]}{'...' if len(content) > 500 else ''}")
             
             # Try to extract JSON from the response
             if content:
                 json_match = re.search(r'\[.*\]', content, re.DOTALL)
                 if json_match:
                     try:
-                        cards = json.loads(json_match.group())
+                        json_content = json_match.group()
+                        logger.info(f"Extracted JSON: {json_content[:200]}{'...' if len(json_content) > 200 else ''}")
+                        cards = json.loads(json_content)
+                        logger.info(f"Successfully parsed {len(cards)} cards from AI response")
                         return cards
-                    except json.JSONDecodeError:
-                        pass
+                    except json.JSONDecodeError as e:
+                        logger.error(f"JSON parsing failed: {e}")
+                        logger.error(f"Failed JSON content: {json_content}")
+                else:
+                    logger.warning("No JSON array found in AI response")
+                    logger.warning(f"Response content: {content}")
                 
                 # Fallback: try to extract card names from text
+                logger.info("Attempting fallback text parsing")
                 cards = []
                 lines = content.split('\n')
                 for line in lines:
@@ -129,13 +229,27 @@ class CardRecognitionAI:
                                 "notes": "Extracted from text response"
                             })
                 
+                logger.info(f"Fallback parsing extracted {len(cards)} cards")
+                if len(cards) == 0:
+                    logger.warning("Fallback parsing failed to extract any cards")
+                    logger.warning(f"Content lines analyzed: {[line.strip() for line in content.split('\\n') if line.strip()]}")
                 return cards
             
+            logger.warning("No content in AI response")
             return []
             
         except Exception as e:
-            print(f"Error in card identification: {e}")
+            api_error = self._log_api_error(e, "card identification")
+            
+            # Store error info for debugging
+            if hasattr(self, '_last_error'):
+                self._last_error = api_error
+            
             return []
+    
+    def get_last_error(self) -> Optional[APIError]:
+        """Get the last API error for debugging"""
+        return getattr(self, '_last_error', None)
     
     def validate_card_name(self, card_name: str) -> bool:
         """Validate if a card name is likely a real Magic card"""
@@ -151,8 +265,9 @@ class CardRecognitionAI:
         return True
     
     def calculate_confidence_score(self, ai_response: Dict[str, Any], scryfall_match: Optional[Dict[str, Any]] = None) -> float:
-        """Calculate confidence score (0-100) for card identification"""
+        """Calculate confidence score (0-100) for card identification with set symbol validation"""
         score = 0.0
+        validation_issues = []
         
         # Base score for having a card name
         if ai_response.get('name'):
@@ -174,6 +289,11 @@ class CardRecognitionAI:
             common_sets = ['alpha', 'beta', 'unlimited', 'revised', 'lea', 'leb', '2ed', '3ed']
             if any(s in ai_set.lower() for s in common_sets):
                 score += 5
+        
+        # Set Symbol Validation (NEW POLICY)
+        symbol_adjustment, symbol_issues = self.symbol_validator.get_confidence_adjustment(ai_response)
+        score += symbol_adjustment * 100  # Convert to 0-100 scale
+        validation_issues.extend(symbol_issues)
         
         # AI confidence mapping
         ai_confidence = ai_response.get('confidence', '').lower()
@@ -217,6 +337,10 @@ class CardRecognitionAI:
                 score += 5
             if any(word in notes for word in ['blurry', 'partial', 'obscured', 'damaged']):
                 score -= 10
+        
+        # Log validation issues for debugging
+        if validation_issues:
+            logger.info(f"Set symbol validation for '{ai_response.get('name', 'Unknown')}': {'; '.join(validation_issues)}")
         
         # Clamp score between 0-100
         return max(0.0, min(100.0, score))
@@ -309,3 +433,7 @@ class CardRecognitionAI:
             'low': 30
         }
         return confidence_map.get(confidence_str.lower(), 50) 
+
+    def get_last_raw_response(self) -> Optional[str]:
+        """Get the last raw AI response for debugging"""
+        return self.last_raw_response 

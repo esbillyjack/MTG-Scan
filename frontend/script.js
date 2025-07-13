@@ -6,6 +6,7 @@ let viewMode = 'individual'; // 'individual' or 'stacked'
 let currentScan = null;
 let scanPollingInterval = null;
 let fileInputBusy = false; // Flag to prevent multiple file input clicks
+let fileInputTimeout = null; // Timeout to reset busy flag
 
 // DOM elements
 const uploadArea = document.getElementById('uploadArea');
@@ -45,16 +46,7 @@ function setupEventListeners() {
     if (uploadBtn) {
         uploadBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent event bubbling to upload area
-            
-            // Check if file input is busy
-            if (fileInputBusy) {
-                console.log('🔘 DEBUG: File input busy, ignoring button click');
-                return;
-            }
-            
-            console.log('🔘 DEBUG: Upload button clicked, triggering file input click');
-            fileInputBusy = true;
-            fileInput.click();
+            handleUploadButtonClick();
         });
     }
     
@@ -62,15 +54,7 @@ function setupEventListeners() {
     uploadArea.addEventListener('click', (e) => {
         // Only trigger if we didn't click the button (avoid double firing)
         if (e.target !== uploadBtn && !uploadBtn.contains(e.target)) {
-            // Check if file input is busy
-            if (fileInputBusy) {
-                console.log('📎 DEBUG: File input busy, ignoring area click');
-                return;
-            }
-            
-            console.log('📎 DEBUG: Upload area clicked, triggering file input click');
-            fileInputBusy = true;
-            fileInput.click();
+            handleUploadButtonClick();
         }
     });
     
@@ -80,6 +64,13 @@ function setupEventListeners() {
     
     console.log('🎧 DEBUG: Adding change event listener to file input');
     fileInput.addEventListener('change', handleFileSelect);
+    
+    // Add mobile-specific event listeners to handle file input issues
+    fileInput.addEventListener('focus', handleFileInputFocus);
+    fileInput.addEventListener('blur', handleFileInputBlur);
+    
+    // Add visibility change listener to reset busy flag when user returns to app
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Search functionality
     searchInput.addEventListener('input', handleSearch);
@@ -128,9 +119,15 @@ function setupEventListeners() {
                 }
             }
         } else if (e.key === 'ArrowLeft') {
-            navigateCard(-1);
+            // Only navigate if card modal is open
+            if (cardModal.style.display === 'block') {
+                navigateCard(-1);
+            }
         } else if (e.key === 'ArrowRight') {
-            navigateCard(1);
+            // Only navigate if card modal is open
+            if (cardModal.style.display === 'block') {
+                navigateCard(1);
+            }
         }
     });
     
@@ -145,6 +142,72 @@ function setupEventListeners() {
     }
     
     console.log('🎧 DEBUG: setupEventListeners completed');
+}
+
+// Handle upload button click with improved mobile support
+function handleUploadButtonClick() {
+    // Check if file input is busy
+    if (fileInputBusy) {
+        console.log('🔘 DEBUG: File input busy, ignoring button click');
+        return;
+    }
+    
+    console.log('🔘 DEBUG: Upload button clicked, triggering file input click');
+    setFileInputBusy(true);
+    fileInput.click();
+}
+
+// Set file input busy state with timeout fallback
+function setFileInputBusy(busy) {
+    fileInputBusy = busy;
+    
+    // Clear any existing timeout
+    if (fileInputTimeout) {
+        clearTimeout(fileInputTimeout);
+        fileInputTimeout = null;
+    }
+    
+    if (busy) {
+        // Set a timeout to automatically reset the busy flag
+        // This prevents the button from being permanently disabled
+        fileInputTimeout = setTimeout(() => {
+            console.log('🔘 DEBUG: File input timeout reached, resetting busy flag');
+            fileInputBusy = false;
+            fileInputTimeout = null;
+        }, 5000); // 5 second timeout
+    }
+}
+
+// Handle file input focus (when file picker opens)
+function handleFileInputFocus() {
+    console.log('🔍 DEBUG: File input focused (file picker opened)');
+}
+
+// Handle file input blur (when file picker closes)
+function handleFileInputBlur() {
+    console.log('🔍 DEBUG: File input blurred (file picker closed)');
+    // Small delay to allow change event to fire first
+    setTimeout(() => {
+        if (fileInputBusy) {
+            console.log('🔍 DEBUG: File input still busy after blur, resetting');
+            setFileInputBusy(false);
+        }
+    }, 100);
+}
+
+// Handle visibility change (when user returns to app)
+function handleVisibilityChange() {
+    if (!document.hidden) {
+        console.log('🔍 DEBUG: App became visible, checking file input state');
+        // Reset busy flag when user returns to app
+        // This handles cases where mobile doesn't fire proper events
+        setTimeout(() => {
+            if (fileInputBusy) {
+                console.log('🔍 DEBUG: Resetting file input busy flag after visibility change');
+                setFileInputBusy(false);
+            }
+        }, 500);
+    }
 }
 
 // Drag and drop handlers
@@ -169,7 +232,7 @@ function handleDrop(e) {
     }
     
     const files = e.dataTransfer.files;
-    fileInputBusy = true;
+    setFileInputBusy(true);
     processFiles(files);
 }
 
@@ -190,7 +253,7 @@ function handleFileSelect(e) {
         // Reset the file input to ensure clean state
         resetFileInput();
         // Reset busy flag since user cancelled
-        fileInputBusy = false;
+        setFileInputBusy(false);
     }
 }
 
@@ -203,12 +266,12 @@ function resetFileInput() {
         // Use a small delay to ensure the file input is properly reset
         setTimeout(() => {
             fileInput.value = '';
-            fileInputBusy = false; // Reset busy flag
+            setFileInputBusy(false); // Reset busy flag
             console.log('🔄 DEBUG: File input reset complete');
         }, 100);
     } else {
         console.log('🔄 DEBUG: File input not found!');
-        fileInputBusy = false; // Reset busy flag even if input not found
+        setFileInputBusy(false); // Reset busy flag even if input not found
     }
 }
 
@@ -394,12 +457,58 @@ function displayCards() {
     
     if (viewMode === 'stacked') {
         // In stacked mode, show mini-fanned stacks for cards with duplicates
-        // and regular individual cards for singles
+        // and create individual cards for singles using proper individual card data
         filteredCards.forEach((card, index) => {
-            const cardElement = card.total_cards > 1 ? 
-                createMiniFannedStack(card, index, filteredCards) : 
-                createDatabaseCard(card, index, filteredCards);
-            cardsGrid.appendChild(cardElement);
+            if (card.total_cards > 1) {
+                const cardElement = createMiniFannedStack(card, index, filteredCards);
+                cardsGrid.appendChild(cardElement);
+            } else {
+                // For single cards in stacked view, create a proper individual card
+                // using the duplicate entry data merged with stack data
+                if (card.duplicates && card.duplicates[0]) {
+                    const duplicateData = card.duplicates[0];
+                    const individualCard = {
+                        id: duplicateData.id,
+                        name: card.name,
+                        set_name: duplicateData.set_name || card.set_name,
+                        set_code: duplicateData.set_code || card.set_code,
+                        collector_number: duplicateData.collector_number || card.collector_number,
+                        rarity: card.rarity,
+                        mana_cost: card.mana_cost,
+                        type_line: card.type_line,
+                        oracle_text: card.oracle_text,
+                        flavor_text: card.flavor_text,
+                        power: card.power,
+                        toughness: card.toughness,
+                        colors: card.colors,
+                        price_usd: card.price_usd,
+                        price_eur: card.price_eur,
+                        price_tix: card.price_tix,
+                        count: duplicateData.count,
+                        stack_count: card.stack_count,
+                        stack_id: card.stack_id,
+                        first_seen: duplicateData.first_seen,
+                        last_seen: duplicateData.last_seen,
+                        image_url: card.image_url,
+                        notes: duplicateData.notes,
+                        condition: duplicateData.condition,
+                        is_example: duplicateData.is_example,
+                        duplicate_group: card.duplicate_group,
+                        first_seen: duplicateData.first_seen,
+                        last_seen: duplicateData.last_seen,
+                        added_method: duplicateData.added_method
+                    };
+                    
+                    // Create an individual-style filtered array for this single card
+                    const individualFilteredCards = [individualCard];
+                    const cardElement = createDatabaseCard(individualCard, 0, individualFilteredCards);
+                    cardsGrid.appendChild(cardElement);
+                } else {
+                    // Fallback for cards without duplicate data
+                    const cardElement = createDatabaseCard(card, index, [card]);
+                    cardsGrid.appendChild(cardElement);
+                }
+            }
         });
     } else {
         // Display individual cards
@@ -554,9 +663,36 @@ function showIndividualCardFromSpread(cardData, parentCard) {
         last_seen: cardData.last_seen
     };
     
-    // Show card details modal
+    // Create navigation array with only cards from this stack
+    const stackCards = [];
+    if (parentCard.duplicates) {
+        parentCard.duplicates.forEach((duplicate, index) => {
+            stackCards.push({
+                ...parentCard,
+                id: duplicate.id,
+                count: duplicate.count,
+                condition: duplicate.condition,
+                notes: duplicate.notes,
+                is_example: duplicate.is_example,
+                first_seen: duplicate.first_seen,
+                last_seen: duplicate.last_seen
+            });
+        });
+    }
+    
+    // Find the current card's index in the stack
+    const currentIndex = stackCards.findIndex(card => card.id === cardData.id);
+    currentCardIndex = currentIndex >= 0 ? currentIndex : 0;
+    
+    // Show card details modal with stack navigation
     modalTitle.textContent = combinedCard.name;
-    modalBody.innerHTML = createEnhancedCardDetailHTML(combinedCard, 0, 1);
+    modalBody.innerHTML = createEnhancedCardDetailHTML(combinedCard, stackCards);
+    
+    // Add navigation arrows if there are multiple cards in stack
+    if (stackCards.length > 1) {
+        addNavigationArrows(stackCards);
+    }
+    
     cardModal.style.display = 'block';
 }
 
@@ -578,9 +714,26 @@ function handleSpreadEscape(e) {
 
 // Magic color identity mapping
 function getColorBorder(colors) {
-    if (!colors || colors === '') return 'colorless';
+    // Handle null, undefined, or empty colors
+    if (!colors || colors === '' || colors === null) return 'colorless';
     
-    const colorArray = colors.split(',').map(c => c.trim().toUpperCase());
+    // Handle arrays (sometimes colors come as arrays)
+    if (Array.isArray(colors)) {
+        if (colors.length === 0) return 'colorless';
+        if (colors.length > 1) return 'multicolor';
+        const color = colors[0].toString().trim().toUpperCase();
+        switch (color) {
+            case 'W': return 'white';
+            case 'U': return 'blue';
+            case 'B': return 'black';
+            case 'R': return 'red';
+            case 'G': return 'green';
+            default: return 'colorless';
+        }
+    }
+    
+    // Handle string format
+    const colorArray = colors.toString().split(',').map(c => c.trim().toUpperCase()).filter(c => c);
     
     if (colorArray.length === 0) return 'colorless';
     if (colorArray.length > 1) return 'multicolor';
@@ -614,6 +767,7 @@ function createDatabaseCard(card, index, filteredCards) {
         </div>
         <div class="card-info">
             <div class="card-name">${card.name}</div>
+            <div class="card-set">${card.set_name || 'Unknown Set'}</div>
             <div class="card-count">Count: ${cardCount}</div>
         </div>
     `;
@@ -663,7 +817,7 @@ function showCardDetails(cardIndex, filteredCards) {
     if (!card) return;
     
     modalTitle.textContent = card.name;
-    modalBody.innerHTML = createEnhancedCardDetailHTML(card, cardIndex, cardsToUse.length);
+    modalBody.innerHTML = createEnhancedCardDetailHTML(card, cardsToUse);
     
     // Add navigation arrows
     addNavigationArrows(cardsToUse);
@@ -710,11 +864,26 @@ function navigateCard(direction, cardsToUse) {
         currentCardIndex = newIndex;
         const card = filteredCards[currentCardIndex];
         
+        // Add visual transition effect
+        const cardImage = modalBody.querySelector('.card-image-large');
+        if (cardImage) {
+            cardImage.style.opacity = '0.3';
+            setTimeout(() => {
+                cardImage.style.opacity = '1';
+            }, 150);
+        }
+        
         modalTitle.textContent = card.name;
-        modalBody.innerHTML = createEnhancedCardDetailHTML(card, currentCardIndex, filteredCards.length);
+        modalBody.innerHTML = createEnhancedCardDetailHTML(card, filteredCards);
         
         // Update navigation arrows
         addNavigationArrows(filteredCards);
+        
+        // Flash the modal content briefly to indicate change
+        modalBody.style.backgroundColor = '#f0f8ff';
+        setTimeout(() => {
+            modalBody.style.backgroundColor = '';
+        }, 200);
     }
 }
 
@@ -913,7 +1082,15 @@ const SET_OPTIONS = [
     { value: 'dsc', label: 'Duskmourn: House of Horror Commander', code: 'DSC' },
     { value: 'eoc', label: 'Edge of Eternities Commander', code: 'EOC' },
     { value: 'ugl', label: 'Unglued', code: 'UGL' },
-    { value: 'vma', label: 'Vintage Masters', code: 'VMA' }
+    { value: 'vma', label: 'Vintage Masters', code: 'VMA' },
+    { value: 'm12', label: 'Magic 2012', code: 'M12' },
+    { value: 'cmd', label: 'Commander 2011', code: 'CMD' },
+    { value: 'cma', label: 'Commander Anthology', code: 'CMA' },
+    { value: 'mm2', label: 'Modern Masters 2015', code: 'MM2' },
+    { value: 'tsr', label: 'Time Spiral Remastered', code: 'TSR' },
+    { value: 'uma', label: 'Ultimate Masters', code: 'UMA' },
+    { value: 'ema', label: 'Eternal Masters', code: 'EMA' },
+    { value: 'mh2', label: 'Modern Horizons 2', code: 'MH2' }
 ];
 
 // Format date for display
@@ -1029,7 +1206,7 @@ function formatManaCost(manaCost) {
 }
 
 // Create enhanced card detail HTML with navigation
-function createEnhancedCardDetailHTML(card, index, total) {
+function createEnhancedCardDetailHTML(card, filteredCards) {
     const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'LP';
     const conditionDropdown = card.id && card.id !== 'undefined' ? `
         <select id="conditionDropdown" onchange="updateCardCondition(${card.id}, this.value)">
@@ -1063,6 +1240,19 @@ function createEnhancedCardDetailHTML(card, index, total) {
         </select>
     `;
     
+    // Calculate the correct count to display - always show actual database count
+    let displayCount;
+    if (card.total_cards) {
+        // In stacked view, total_cards represents the number of duplicate entries
+        displayCount = card.total_cards;
+    } else if (card.stack_count) {
+        // Use stack_count if available
+        displayCount = card.stack_count;
+    } else {
+        // Fallback to individual count
+        displayCount = card.count || 1;
+    }
+    
     return `
         <div class="card-detail-container">
             <div class="card-image-section">
@@ -1078,6 +1268,10 @@ function createEnhancedCardDetailHTML(card, index, total) {
                     <span class="detail-value">${card.name}</span>
                 </div>
                 <div class="detail-row">
+                    <span class="detail-label">ID:</span>
+                    <span class="detail-value">${card.unique_id || card.id || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
                     <span class="detail-label">Set:</span>
                     <span class="detail-value">${setDropdown}</span>
                 </div>
@@ -1091,7 +1285,7 @@ function createEnhancedCardDetailHTML(card, index, total) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Count:</span>
-                    <span class="detail-value">${card.count || 1}</span>
+                    <span class="detail-value">${displayCount}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Condition:</span>
@@ -1140,15 +1334,6 @@ function createEnhancedCardDetailHTML(card, index, total) {
                     `}
                 </div>
             </div>
-        </div>
-        <div class="nav-controls">
-            <button class="nav-btn" onclick="navigateCard(-1)" ${index === 0 ? 'disabled' : ''}>
-                <i class="fas fa-chevron-left"></i> Previous
-            </button>
-            <span class="card-counter">${index + 1} of ${total}</span>
-            <button class="nav-btn" onclick="navigateCard(1)" ${index === total - 1 ? 'disabled' : ''}>
-                Next <i class="fas fa-chevron-right"></i>
-            </button>
         </div>
     `;
 }
@@ -1640,6 +1825,9 @@ function showReviewInterface(results) {
                     <button class="scan-secondary-btn" onclick="cancelScan()">
                         <i class="fas fa-times"></i> Cancel
                     </button>
+                    <button class="scan-retry-btn" onclick="retryScan()">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
                     <button class="scan-primary-btn" onclick="finishScan()">
                         <i class="fas fa-arrow-right"></i> Continue
                     </button>
@@ -1701,6 +1889,9 @@ function showReviewInterface(results) {
                 <button class="scan-secondary-btn" onclick="cancelScan()">
                     <i class="fas fa-times"></i> Cancel
                 </button>
+                <button class="scan-retry-btn" onclick="retryScan()">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
                 <button class="scan-primary-btn" onclick="commitAcceptedCards()" id="commitButton">
                     <i class="fas fa-plus"></i> Add Accepted to Collection
                 </button>
@@ -1710,6 +1901,267 @@ function showReviewInterface(results) {
     
     // Update the commit button state
     updateCommitButtonState();
+}
+
+// Create set display for scan result with unknown set detection
+function createSetDisplayForScanResult(result) {
+    const setName = result.set_name || '';
+    const setCode = result.set_code || '';
+    
+    // Check if set is unknown/missing
+    const isUnknownSet = !setName || 
+                        setName.toLowerCase().includes('unknown') || 
+                        setName.toLowerCase().includes('not found') ||
+                        setCode.toLowerCase().includes('unknown') ||
+                        setCode === '' ||
+                        setName === 'Unknown Set';
+    
+    if (isUnknownSet) {
+        return `
+            <div class="scan-result-set unknown-set">
+                <div class="unknown-set-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Unknown Set - Please Select:</span>
+                </div>
+                <div class="set-correction-container">
+                    <select class="set-correction-dropdown" 
+                            onchange="updateScanResultSet(${result.id}, this.value)"
+                            data-result-id="${result.id}">
+                        <option value="">Select Set...</option>
+                        <option value="m21|Core Set 2021">Core Set 2021 (M21)</option>
+                        <option value="znr|Zendikar Rising">Zendikar Rising (ZNR)</option>
+                        <option value="khm|Kaldheim">Kaldheim (KHM)</option>
+                        <option value="stx|Strixhaven">Strixhaven (STX)</option>
+                        <option value="afr|Adventures in the Forgotten Realms">Adventures in the Forgotten Realms (AFR)</option>
+                        <option value="mid|Innistrad: Midnight Hunt">Innistrad: Midnight Hunt (MID)</option>
+                        <option value="vow|Innistrad: Crimson Vow">Innistrad: Crimson Vow (VOW)</option>
+                        <option value="neo|Kamigawa: Neon Dynasty">Kamigawa: Neon Dynasty (NEO)</option>
+                        <option value="snc|Streets of New Capenna">Streets of New Capenna (SNC)</option>
+                        <option value="clb|Commander Legends: Battle for Baldur's Gate">Commander Legends: Battle for Baldur's Gate (CLB)</option>
+                        <option value="2x2|Double Masters 2022">Double Masters 2022 (2X2)</option>
+                        <option value="dmu|Dominaria United">Dominaria United (DMU)</option>
+                        <option value="bro|The Brothers' War">The Brothers' War (BRO)</option>
+                        <option value="one|Phyrexia: All Will Be One">Phyrexia: All Will Be One (ONE)</option>
+                        <option value="mom|March of the Machine">March of the Machine (MOM)</option>
+                        <option value="mat|March of the Machine: The Aftermath">March of the Machine: The Aftermath (MAT)</option>
+                        <option value="ltr|The Lord of the Rings: Tales of Middle-earth">The Lord of the Rings: Tales of Middle-earth (LTR)</option>
+                        <option value="woe|Wilds of Eldraine">Wilds of Eldraine (WOE)</option>
+                        <option value="lci|The Lost Caverns of Ixalan">The Lost Caverns of Ixalan (LCI)</option>
+                        <option value="mkm|Murders at Karlov Manor">Murders at Karlov Manor (MKM)</option>
+                        <option value="otj|Outlaws of Thunder Junction">Outlaws of Thunder Junction (OTJ)</option>
+                        <option value="mh3|Modern Horizons 3">Modern Horizons 3 (MH3)</option>
+                        <option value="blb|Bloomburrow">Bloomburrow (BLB)</option>
+                        <option value="dsk|Duskmourn: House of Horror">Duskmourn: House of Horror (DSK)</option>
+                        <option value="fdn|Foundations">Foundations (FDN)</option>
+                        <option value="other|Other (specify manually)">Other (specify manually)</option>
+                    </select>
+                    <button class="set-search-btn" onclick="showSetSearchForResult(${result.id})" title="Search for set">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        return `<div class="scan-result-set">${setName}</div>`;
+    }
+}
+
+// Update scan result set when selected from dropdown
+async function updateScanResultSet(resultId, setSelection) {
+    if (!setSelection) return;
+    
+    try {
+        const [setCode, setName] = setSelection.split('|');
+        
+        if (setSelection === 'other') {
+            // Show manual entry for other sets
+            showSetSearchForResult(resultId);
+            return;
+        }
+        
+        // Update the scan result in the backend
+        const response = await fetch(`/scan/result/${resultId}/set`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                set_code: setCode,
+                set_name: setName
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update set information');
+        }
+        
+        // Update the UI to show the new set
+        const resultElement = document.querySelector(`[data-result-id="${resultId}"]`);
+        const setContainer = resultElement.querySelector('.scan-result-set');
+        setContainer.outerHTML = `<div class="scan-result-set">${setName}</div>`;
+        
+        console.log(`Updated scan result ${resultId} set to: ${setName} (${setCode})`);
+        
+    } catch (error) {
+        console.error('Error updating scan result set:', error);
+        alert('Failed to update set information');
+    }
+}
+
+// Show set search modal for manual entry
+function showSetSearchForResult(resultId) {
+    // Store the result ID for later use
+    window.currentSetSearchResultId = resultId;
+    
+    // Create and show set search modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'setSearchModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Search for Card Set</h3>
+                <button class="close-btn" onclick="closeSetSearchModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="set-search-container">
+                    <input type="text" id="setSearchInput" placeholder="Enter set name or code..." 
+                           onkeyup="searchSets(this.value)" autocomplete="off">
+                    <div id="setSearchResults" class="set-search-results">
+                        <div class="search-instruction">Start typing to search for Magic sets...</div>
+                    </div>
+                </div>
+                <div class="manual-entry-container">
+                    <h4>Or Enter Manually:</h4>
+                    <div class="manual-entry-form">
+                        <input type="text" id="manualSetCode" placeholder="Set Code (e.g., ZNR)" maxlength="10">
+                        <input type="text" id="manualSetName" placeholder="Set Name (e.g., Zendikar Rising)">
+                        <button onclick="applyManualSet()" class="apply-set-btn">Apply Set</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+    
+    // Focus on search input
+    setTimeout(() => {
+        document.getElementById('setSearchInput').focus();
+    }, 100);
+}
+
+// Close set search modal
+function closeSetSearchModal() {
+    const modal = document.getElementById('setSearchModal');
+    if (modal) {
+        modal.remove();
+    }
+    window.currentSetSearchResultId = null;
+}
+
+// Search for sets (simplified version - in practice you might want to use Scryfall API)
+function searchSets(query) {
+    const resultsContainer = document.getElementById('setSearchResults');
+    
+    if (!query || query.length < 2) {
+        resultsContainer.innerHTML = '<div class="search-instruction">Start typing to search for Magic sets...</div>';
+        return;
+    }
+    
+    // Simplified set list for searching
+    const commonSets = [
+        { code: 'FDN', name: 'Foundations' },
+        { code: 'DSK', name: 'Duskmourn: House of Horror' },
+        { code: 'BLB', name: 'Bloomburrow' },
+        { code: 'MH3', name: 'Modern Horizons 3' },
+        { code: 'OTJ', name: 'Outlaws of Thunder Junction' },
+        { code: 'MKM', name: 'Murders at Karlov Manor' },
+        { code: 'LCI', name: 'The Lost Caverns of Ixalan' },
+        { code: 'WOE', name: 'Wilds of Eldraine' },
+        { code: 'LTR', name: 'The Lord of the Rings: Tales of Middle-earth' },
+        { code: 'MAT', name: 'March of the Machine: The Aftermath' },
+        { code: 'MOM', name: 'March of the Machine' },
+        { code: 'ONE', name: 'Phyrexia: All Will Be One' },
+        { code: 'BRO', name: 'The Brothers\' War' },
+        { code: 'DMU', name: 'Dominaria United' },
+        { code: '2X2', name: 'Double Masters 2022' },
+        { code: 'CLB', name: 'Commander Legends: Battle for Baldur\'s Gate' },
+        { code: 'SNC', name: 'Streets of New Capenna' },
+        { code: 'NEO', name: 'Kamigawa: Neon Dynasty' },
+        { code: 'VOW', name: 'Innistrad: Crimson Vow' },
+        { code: 'MID', name: 'Innistrad: Midnight Hunt' },
+        { code: 'AFR', name: 'Adventures in the Forgotten Realms' },
+        { code: 'STX', name: 'Strixhaven: School of Mages' },
+        { code: 'KHM', name: 'Kaldheim' },
+        { code: 'ZNR', name: 'Zendikar Rising' },
+        { code: 'M21', name: 'Core Set 2021' },
+        { code: 'IKO', name: 'Ikoria: Lair of Behemoths' },
+        { code: 'THB', name: 'Theros Beyond Death' },
+        { code: 'ELD', name: 'Throne of Eldraine' },
+        { code: 'M20', name: 'Core Set 2020' },
+        { code: 'WAR', name: 'War of the Spark' },
+        { code: 'RNA', name: 'Ravnica Allegiance' },
+        { code: 'GRN', name: 'Guilds of Ravnica' },
+        { code: 'M19', name: 'Core Set 2019' },
+        { code: 'DOM', name: 'Dominaria' },
+        { code: 'RIX', name: 'Rivals of Ixalan' },
+        { code: 'XLN', name: 'Ixalan' }
+    ];
+    
+    const filteredSets = commonSets.filter(set => 
+        set.name.toLowerCase().includes(query.toLowerCase()) ||
+        set.code.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    if (filteredSets.length === 0) {
+        resultsContainer.innerHTML = '<div class="no-results">No sets found. Try a different search term.</div>';
+        return;
+    }
+    
+    const resultsHtml = filteredSets.map(set => `
+        <div class="set-search-result" onclick="selectSearchedSet('${set.code}', '${set.name}')">
+            <div class="set-code">${set.code}</div>
+            <div class="set-name">${set.name}</div>
+        </div>
+    `).join('');
+    
+    resultsContainer.innerHTML = resultsHtml;
+}
+
+// Select a set from search results
+async function selectSearchedSet(setCode, setName) {
+    const resultId = window.currentSetSearchResultId;
+    if (!resultId) return;
+    
+    try {
+        await updateScanResultSet(resultId, `${setCode}|${setName}`);
+        closeSetSearchModal();
+    } catch (error) {
+        console.error('Error selecting searched set:', error);
+    }
+}
+
+// Apply manually entered set
+async function applyManualSet() {
+    const setCode = document.getElementById('manualSetCode').value.trim();
+    const setName = document.getElementById('manualSetName').value.trim();
+    const resultId = window.currentSetSearchResultId;
+    
+    if (!setCode || !setName || !resultId) {
+        alert('Please enter both set code and set name');
+        return;
+    }
+    
+    try {
+        await updateScanResultSet(resultId, `${setCode}|${setName}`);
+        closeSetSearchModal();
+    } catch (error) {
+        console.error('Error applying manual set:', error);
+    }
 }
 
 // Create scan result item HTML
@@ -1766,7 +2218,7 @@ function createScanResultItem(result) {
             </div>
             <div class="scan-result-info">
                 <div class="scan-result-name">${result.card_name}</div>
-                <div class="scan-result-set">${result.set_name || 'Unknown Set'}</div>
+                ${createSetDisplayForScanResult(result)}
                 <div class="scan-result-confidence">
                     <span class="confidence-score ${confidenceClass}">
                         ${Math.round(result.confidence_score)}% confidence
@@ -1784,6 +2236,11 @@ function createScanResultItem(result) {
                         onclick="rejectResult(${result.id})" 
                         data-result-id="${result.id}">
                     <i class="fas fa-times"></i> ${isRejected ? 'Rejected' : 'Reject'}
+                </button>
+                <button class="scan-action-btn info" 
+                        onclick="showAIResponse(${currentScan.scan_id})" 
+                        title="Show AI Response Details">
+                    <i class="fas fa-info-circle"></i> INFO
                 </button>
             </div>
         </div>
@@ -2175,6 +2632,47 @@ async function cancelScan() {
             // Even if cancellation fails, close the modal
             closeScanningModal();
         }
+    }
+}
+
+// Retry scan
+async function retryScan() {
+    if (!currentScan || !currentScan.id) {
+        alert('No scan to retry');
+        return;
+    }
+    
+    try {
+        // Get the current scan files
+        const scanFiles = currentScan.files || [];
+        
+        if (scanFiles.length === 0) {
+            alert('No scan files available to retry');
+            return;
+        }
+        
+        // Clear current scan polling
+        if (scanPollingInterval) {
+            clearInterval(scanPollingInterval);
+            scanPollingInterval = null;
+        }
+        
+        // Start a new scan with the same files
+        const scanResult = await uploadAndScan(scanFiles);
+        
+        if (scanResult.success) {
+            // Update current scan reference
+            currentScan.id = scanResult.scan_id;
+            
+            // Restart the scanning workflow
+            await showScanningModal(scanResult.scan_id, scanFiles);
+        } else {
+            alert(`Error retrying scan: ${scanResult.error}`);
+        }
+        
+    } catch (error) {
+        console.error('Error retrying scan:', error);
+        alert('Error retrying scan. Please try again.');
     }
 }
 
@@ -2695,4 +3193,916 @@ function createScanHistoryItem(scan) {
             ` : ''}
         </div>
     `;
-} 
+}
+
+// Unknown Sets Review functionality
+async function showUnknownSetsReview() {
+    // Close tools dropdown
+    const dropdown = document.getElementById('toolsDropdown');
+    dropdown.classList.remove('show');
+    
+    // Show modal
+    const modal = document.getElementById('unknownSetsModal');
+    modal.style.display = 'flex';
+    
+    // Load unknown sets data
+    await loadUnknownSetsData();
+}
+
+// Close unknown sets review modal
+function closeUnknownSetsModal() {
+    const modal = document.getElementById('unknownSetsModal');
+    modal.style.display = 'none';
+    
+    // Clear current review state
+    window.currentUnknownSetsReview = null;
+}
+
+// Load cards with unknown sets
+async function loadUnknownSetsData() {
+    try {
+        const response = await fetch('/cards/unknown-sets');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load unknown sets data');
+        }
+        
+        displayUnknownSetsReview(data.cards);
+        
+    } catch (error) {
+        console.error('Error loading unknown sets:', error);
+        const body = document.getElementById('unknownSetsBody');
+        body.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Failed to load cards with unknown sets</p>
+                <button onclick="loadUnknownSetsData()" class="retry-btn">Retry</button>
+            </div>
+        `;
+    }
+}
+
+// Display unknown sets review interface
+function displayUnknownSetsReview(cards) {
+    const body = document.getElementById('unknownSetsBody');
+    
+    if (!cards || cards.length === 0) {
+        body.innerHTML = `
+            <div class="no-unknown-sets">
+                <i class="fas fa-check-circle"></i>
+                <h3>No Unknown Sets Found!</h3>
+                <p>All cards in your collection have proper set information.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Initialize review state
+    window.currentUnknownSetsReview = {
+        cards: cards,
+        currentIndex: 0,
+        totalCards: cards.length
+    };
+    
+    // Show the first card
+    showUnknownSetCard(0);
+}
+
+// Show a specific unknown set card for review
+function showUnknownSetCard(index) {
+    const review = window.currentUnknownSetsReview;
+    if (!review || index < 0 || index >= review.totalCards) return;
+    
+    review.currentIndex = index;
+    const card = review.cards[index];
+    const body = document.getElementById('unknownSetsBody');
+    
+    body.innerHTML = `
+        <div class="unknown-set-review-container">
+            <div class="review-header">
+                <div class="review-progress">
+                    Card ${index + 1} of ${review.totalCards}
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${((index + 1) / review.totalCards) * 100}%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="review-card-display">
+                <div class="review-card-image">
+                    <img src="${card.image_url || 'https://via.placeholder.com/200x279/667eea/ffffff?text=No+Image'}" 
+                         alt="${card.name}" 
+                         onerror="this.src='https://via.placeholder.com/200x279/667eea/ffffff?text=No+Image'">
+                    ${card.scan_id ? `<button class="view-scan-btn-review" onclick="viewScanImage(${card.scan_id}, '${card.name}')" title="View scanned image">👓</button>` : ''}
+                    <div class="rescan-button-container">
+                        ${card.scan_id ? `<button class="rescan-btn" onclick="rescanCard(${card.scan_id})" title="Rescan this image">
+                            <i class="fas fa-redo"></i> RESCAN
+                        </button>` : ''}
+                    </div>
+                </div>
+                
+                <div class="review-card-info">
+                    <h4>${card.name}</h4>
+                    <div class="current-set-info">
+                        <p><strong>Current Set:</strong> <span class="unknown-indicator">${card.set_name || 'Unknown'}</span></p>
+                        <p><strong>Set Code:</strong> <span class="unknown-indicator">${card.set_code || 'Unknown'}</span></p>
+                        <p><strong>Added:</strong> ${formatDate(card.first_seen)} (${formatAddedMethod(card.added_method)})</p>
+                    </div>
+                    
+                    <div class="set-correction-section">
+                        <h5>Select Correct Set:</h5>
+                        <div class="set-selection-container">
+                            <select class="review-set-dropdown" id="reviewSetDropdown">
+                                <option value="">Select Set...</option>
+                                <option value="m21|Core Set 2021">Core Set 2021 (M21)</option>
+                                <option value="znr|Zendikar Rising">Zendikar Rising (ZNR)</option>
+                                <option value="khm|Kaldheim">Kaldheim (KHM)</option>
+                                <option value="stx|Strixhaven">Strixhaven (STX)</option>
+                                <option value="afr|Adventures in the Forgotten Realms">Adventures in the Forgotten Realms (AFR)</option>
+                                <option value="mid|Innistrad: Midnight Hunt">Innistrad: Midnight Hunt (MID)</option>
+                                <option value="vow|Innistrad: Crimson Vow">Innistrad: Crimson Vow (VOW)</option>
+                                <option value="neo|Kamigawa: Neon Dynasty">Kamigawa: Neon Dynasty (NEO)</option>
+                                <option value="snc|Streets of New Capenna">Streets of New Capenna (SNC)</option>
+                                <option value="clb|Commander Legends: Battle for Baldur's Gate">Commander Legends: Battle for Baldur's Gate (CLB)</option>
+                                <option value="2x2|Double Masters 2022">Double Masters 2022 (2X2)</option>
+                                <option value="dmu|Dominaria United">Dominaria United (DMU)</option>
+                                <option value="bro|The Brothers' War">The Brothers' War (BRO)</option>
+                                <option value="one|Phyrexia: All Will Be One">Phyrexia: All Will Be One (ONE)</option>
+                                <option value="mom|March of the Machine">March of the Machine (MOM)</option>
+                                <option value="mat|March of the Machine: The Aftermath">March of the Machine: The Aftermath (MAT)</option>
+                                <option value="ltr|The Lord of the Rings: Tales of Middle-earth">The Lord of the Rings: Tales of Middle-earth (LTR)</option>
+                                <option value="woe|Wilds of Eldraine">Wilds of Eldraine (WOE)</option>
+                                <option value="lci|The Lost Caverns of Ixalan">The Lost Caverns of Ixalan (LCI)</option>
+                                <option value="mkm|Murders at Karlov Manor">Murders at Karlov Manor (MKM)</option>
+                                <option value="otj|Outlaws of Thunder Junction">Outlaws of Thunder Junction (OTJ)</option>
+                                <option value="mh3|Modern Horizons 3">Modern Horizons 3 (MH3)</option>
+                                <option value="blb|Bloomburrow">Bloomburrow (BLB)</option>
+                                <option value="dsk|Duskmourn: House of Horror">Duskmourn: House of Horror (DSK)</option>
+                                <option value="fdn|Foundations">Foundations (FDN)</option>
+                                <option value="other|Other (specify manually)">Other (specify manually)</option>
+                            </select>
+                            <button onclick="showSetSearchForCard(${card.id})" class="search-set-btn">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="review-actions">
+                <div class="navigation-buttons">
+                    <button onclick="navigateUnknownSet(-1)" ${index === 0 ? 'disabled' : ''} class="nav-btn">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <button onclick="skipUnknownSetCard()" class="skip-btn">
+                        <i class="fas fa-forward"></i> Skip
+                    </button>
+                    <button onclick="navigateUnknownSet(1)" ${index === review.totalCards - 1 ? 'disabled' : ''} class="nav-btn">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+                <div class="action-buttons">
+                    <button onclick="applySetToCard()" class="apply-btn" id="applySetBtn" disabled>
+                        <i class="fas fa-check"></i> Apply Set
+                    </button>
+                    <button onclick="closeUnknownSetsModal()" class="close-review-btn">
+                        <i class="fas fa-times"></i> Close Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Set up dropdown change handler
+    const dropdown = document.getElementById('reviewSetDropdown');
+    dropdown.addEventListener('change', function() {
+        const applyBtn = document.getElementById('applySetBtn');
+        applyBtn.disabled = !this.value;
+    });
+}
+
+// Navigate between unknown set cards
+function navigateUnknownSet(direction) {
+    const review = window.currentUnknownSetsReview;
+    if (!review) return;
+    
+    const newIndex = review.currentIndex + direction;
+    if (newIndex >= 0 && newIndex < review.totalCards) {
+        showUnknownSetCard(newIndex);
+    }
+}
+
+// Skip current unknown set card
+function skipUnknownSetCard() {
+    const review = window.currentUnknownSetsReview;
+    if (!review) return;
+    
+    if (review.currentIndex < review.totalCards - 1) {
+        navigateUnknownSet(1);
+    } else {
+        // Last card, close review
+        closeUnknownSetsModal();
+    }
+}
+
+// Apply selected set to current card
+async function applySetToCard() {
+    const review = window.currentUnknownSetsReview;
+    if (!review) return;
+    
+    const dropdown = document.getElementById('reviewSetDropdown');
+    const setSelection = dropdown.value;
+    
+    if (!setSelection) {
+        alert('Please select a set first');
+        return;
+    }
+    
+    if (setSelection === 'other') {
+        showSetSearchForCard(review.cards[review.currentIndex].id);
+        return;
+    }
+    
+    const [setCode, setName] = setSelection.split('|');
+    const cardId = review.cards[review.currentIndex].id;
+    
+    try {
+        const response = await fetch(`/cards/${cardId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                set_code: setCode,
+                set_name: setName
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update card set');
+        }
+        
+        // Remove this card from the review list
+        review.cards.splice(review.currentIndex, 1);
+        review.totalCards--;
+        
+        // Show next card or close if done
+        if (review.totalCards === 0) {
+            displayUnknownSetsReview([]);
+        } else if (review.currentIndex >= review.totalCards) {
+            showUnknownSetCard(review.totalCards - 1);
+        } else {
+            showUnknownSetCard(review.currentIndex);
+        }
+        
+        console.log(`Updated card ${cardId} set to: ${setName} (${setCode})`);
+        
+    } catch (error) {
+        console.error('Error updating card set:', error);
+        alert('Failed to update card set');
+    }
+}
+
+// Show set search for a specific card
+function showSetSearchForCard(cardId) {
+    window.currentSetSearchCardId = cardId;
+    showSetSearchModal();
+}
+
+// Modified set search modal for card review
+function showSetSearchModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'setSearchModalReview';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Search for Card Set</h3>
+                <button class="close-btn" onclick="closeSetSearchModalReview()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="set-search-container">
+                    <input type="text" id="setSearchInputReview" placeholder="Enter set name or code..." 
+                           onkeyup="searchSetsReview(this.value)" autocomplete="off">
+                    <div id="setSearchResultsReview" class="set-search-results">
+                        <div class="search-instruction">Start typing to search for Magic sets...</div>
+                    </div>
+                </div>
+                <div class="manual-entry-container">
+                    <h4>Or Enter Manually:</h4>
+                    <div class="manual-entry-form">
+                        <input type="text" id="manualSetCodeReview" placeholder="Set Code (e.g., ZNR)" maxlength="10">
+                        <input type="text" id="manualSetNameReview" placeholder="Set Name (e.g., Zendikar Rising)">
+                        <button onclick="applyManualSetReview()" class="apply-set-btn">Apply Set</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+    
+    setTimeout(() => {
+        document.getElementById('setSearchInputReview').focus();
+    }, 100);
+}
+
+function closeSetSearchModalReview() {
+    const modal = document.getElementById('setSearchModalReview');
+    if (modal) {
+        modal.remove();
+    }
+    window.currentSetSearchCardId = null;
+}
+
+function searchSetsReview(query) {
+    // Reuse the same search logic but with different element IDs
+    const resultsContainer = document.getElementById('setSearchResultsReview');
+    
+    if (!query || query.length < 2) {
+        resultsContainer.innerHTML = '<div class="search-instruction">Start typing to search for Magic sets...</div>';
+        return;
+    }
+    
+    // Same sets list as before
+    const commonSets = [
+        { code: 'FDN', name: 'Foundations' },
+        { code: 'DSK', name: 'Duskmourn: House of Horror' },
+        { code: 'BLB', name: 'Bloomburrow' },
+        { code: 'MH3', name: 'Modern Horizons 3' },
+        { code: 'OTJ', name: 'Outlaws of Thunder Junction' },
+        { code: 'MKM', name: 'Murders at Karlov Manor' },
+        { code: 'LCI', name: 'The Lost Caverns of Ixalan' },
+        { code: 'WOE', name: 'Wilds of Eldraine' },
+        { code: 'LTR', name: 'The Lord of the Rings: Tales of Middle-earth' },
+        { code: 'MAT', name: 'March of the Machine: The Aftermath' },
+        { code: 'MOM', name: 'March of the Machine' },
+        { code: 'ONE', name: 'Phyrexia: All Will Be One' },
+        { code: 'BRO', name: 'The Brothers\' War' },
+        { code: 'DMU', name: 'Dominaria United' },
+        { code: '2X2', name: 'Double Masters 2022' },
+        { code: 'CLB', name: 'Commander Legends: Battle for Baldur\'s Gate' },
+        { code: 'SNC', name: 'Streets of New Capenna' },
+        { code: 'NEO', name: 'Kamigawa: Neon Dynasty' },
+        { code: 'VOW', name: 'Innistrad: Crimson Vow' },
+        { code: 'MID', name: 'Innistrad: Midnight Hunt' },
+        { code: 'AFR', name: 'Adventures in the Forgotten Realms' },
+        { code: 'STX', name: 'Strixhaven: School of Mages' },
+        { code: 'KHM', name: 'Kaldheim' },
+        { code: 'ZNR', name: 'Zendikar Rising' },
+        { code: 'M21', name: 'Core Set 2021' },
+        { code: 'IKO', name: 'Ikoria: Lair of Behemoths' },
+        { code: 'THB', name: 'Theros Beyond Death' },
+        { code: 'ELD', name: 'Throne of Eldraine' },
+        { code: 'M20', name: 'Core Set 2020' },
+        { code: 'WAR', name: 'War of the Spark' },
+        { code: 'RNA', name: 'Ravnica Allegiance' },
+        { code: 'GRN', name: 'Guilds of Ravnica' },
+        { code: 'M19', name: 'Core Set 2019' },
+        { code: 'DOM', name: 'Dominaria' },
+        { code: 'RIX', name: 'Rivals of Ixalan' },
+        { code: 'XLN', name: 'Ixalan' }
+    ];
+    
+    const filteredSets = commonSets.filter(set => 
+        set.name.toLowerCase().includes(query.toLowerCase()) ||
+        set.code.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    if (filteredSets.length === 0) {
+        resultsContainer.innerHTML = '<div class="no-results">No sets found. Try a different search term.</div>';
+        return;
+    }
+    
+    const resultsHtml = filteredSets.map(set => `
+        <div class="set-search-result" onclick="selectSearchedSetReview('${set.code}', '${set.name}')">
+            <div class="set-code">${set.code}</div>
+            <div class="set-name">${set.name}</div>
+        </div>
+    `).join('');
+    
+    resultsContainer.innerHTML = resultsHtml;
+}
+
+async function selectSearchedSetReview(setCode, setName) {
+    const cardId = window.currentSetSearchCardId;
+    if (!cardId) return;
+    
+    try {
+        await updateCardSetReview(cardId, setCode, setName);
+        closeSetSearchModalReview();
+    } catch (error) {
+        console.error('Error selecting searched set:', error);
+    }
+}
+
+async function applyManualSetReview() {
+    const setCode = document.getElementById('manualSetCodeReview').value.trim();
+    const setName = document.getElementById('manualSetNameReview').value.trim();
+    const cardId = window.currentSetSearchCardId;
+    
+    if (!setCode || !setName || !cardId) {
+        alert('Please enter both set code and set name');
+        return;
+    }
+    
+    try {
+        await updateCardSetReview(cardId, setCode, setName);
+        closeSetSearchModalReview();
+    } catch (error) {
+        console.error('Error applying manual set:', error);
+    }
+}
+
+async function updateCardSetReview(cardId, setCode, setName) {
+    const response = await fetch(`/cards/${cardId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            set_code: setCode,
+            set_name: setName
+        })
+    });
+    
+    if (!response.ok) {
+        throw new Error('Failed to update card set');
+    }
+    
+    // Update the review interface
+    const review = window.currentUnknownSetsReview;
+    if (review) {
+        review.cards.splice(review.currentIndex, 1);
+        review.totalCards--;
+        
+        if (review.totalCards === 0) {
+            displayUnknownSetsReview([]);
+        } else if (review.currentIndex >= review.totalCards) {
+            showUnknownSetCard(review.totalCards - 1);
+        } else {
+            showUnknownSetCard(review.currentIndex);
+        }
+    }
+    
+    console.log(`Updated card ${cardId} set to: ${setName} (${setCode})`);
+}
+
+// AI Service Logs functionality
+function showAILogs() {
+    const modal = document.getElementById('aiLogsModal');
+    const body = document.getElementById('aiLogsBody');
+    
+    // Show loading state
+    body.innerHTML = `
+        <div class="ai-logs-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading AI service status...</p>
+        </div>
+    `;
+    
+    modal.style.display = 'flex';
+    
+    // Hide tools dropdown
+    const dropdown = document.getElementById('toolsDropdown');
+    if (dropdown) {
+        dropdown.classList.remove('show');
+    }
+    
+    // Load AI logs data
+    loadAILogsData();
+}
+
+function closeAILogsModal() {
+    const modal = document.getElementById('aiLogsModal');
+    modal.style.display = 'none';
+}
+
+async function loadAILogsData() {
+    try {
+        // Fetch both health and error data
+        const [healthResponse, errorsResponse] = await Promise.all([
+            fetch('/debug/ai-health'),
+            fetch('/debug/ai-errors')
+        ]);
+        
+        const healthData = await healthResponse.json();
+        const errorsData = await errorsResponse.json();
+        
+        displayAILogsData(healthData, errorsData);
+        
+    } catch (error) {
+        console.error('Error loading AI logs:', error);
+        displayAILogsError(error.message);
+    }
+}
+
+function displayAILogsData(healthData, errorsData) {
+    const body = document.getElementById('aiLogsBody');
+    
+    const healthSection = createHealthSection(healthData);
+    const errorSection = createErrorSection(errorsData);
+    
+    body.innerHTML = `
+        <div class="ai-logs-content">
+            ${healthSection}
+            ${errorSection}
+            <div class="ai-logs-actions">
+                <button class="ai-logs-btn" onclick="showFullAILogs()">
+                    <i class="fas fa-file-alt"></i> Full Logs
+                </button>
+                <button class="ai-logs-btn refresh" onclick="refreshAILogs()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="ai-logs-btn" onclick="closeAILogsModal()">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function createHealthSection(healthData) {
+    const isHealthy = healthData.status === 'healthy';
+    const healthIcon = isHealthy ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle';
+    const healthClass = isHealthy ? 'healthy' : 'error';
+    
+    return `
+        <div class="ai-health-section">
+            <div class="ai-health-title">
+                <i class="${healthIcon}"></i>
+                AI Service Health
+            </div>
+            <div class="ai-health-status">
+                <div class="ai-health-item">
+                    <span class="ai-health-label">Status</span>
+                    <span class="ai-health-value ${healthClass}">
+                        ${isHealthy ? 'Healthy' : healthData.last_error || 'Unhealthy'}
+                    </span>
+                </div>
+                <div class="ai-health-item">
+                    <span class="ai-health-label">API Key</span>
+                    <span class="ai-health-value">${healthData.api_key_present ? 'Present' : 'Missing'}</span>
+                </div>
+                <div class="ai-health-item">
+                    <span class="ai-health-label">Rate Limit</span>
+                    <span class="ai-health-value">${healthData.rate_limit_interval || 0}s</span>
+                </div>
+                <div class="ai-health-item">
+                    <span class="ai-health-label">Last Error</span>
+                    <span class="ai-health-value">${healthData.last_error || 'None'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function createErrorSection(errorsData) {
+    const hasError = errorsData.has_errors && errorsData.last_error;
+    const sectionClass = hasError ? '' : 'no-error';
+    const errorIcon = hasError ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
+    
+    if (!hasError) {
+        return `
+            <div class="ai-error-section ${sectionClass}">
+                <div class="ai-error-title">
+                    <i class="${errorIcon}"></i>
+                    Recent Errors
+                </div>
+                <div class="ai-no-error">
+                    <i class="fas fa-thumbs-up"></i>
+                    No recent errors detected
+                </div>
+            </div>
+        `;
+    }
+    
+    const error = errorsData.last_error;
+    const errorTypeClass = getErrorTypeClass(error.error_type);
+    
+    return `
+        <div class="ai-error-section ${sectionClass}">
+            <div class="ai-error-title">
+                <i class="${errorIcon}"></i>
+                Recent Errors
+            </div>
+            <div class="ai-error-details">
+                <div class="ai-error-item">
+                    <span class="ai-error-label">Error Type:</span>
+                    <span class="ai-error-type ${errorTypeClass}">${error.error_type}</span>
+                </div>
+                <div class="ai-error-item">
+                    <span class="ai-error-label">Timestamp:</span>
+                    <span class="ai-error-value">${new Date(error.timestamp).toLocaleString()}</span>
+                </div>
+                <div class="ai-error-item">
+                    <span class="ai-error-label">Quota Issue:</span>
+                    <span class="ai-error-value">${error.is_quota_error ? 'Yes' : 'No'}</span>
+                </div>
+                <div class="ai-error-item">
+                    <span class="ai-error-label">Rate Limited:</span>
+                    <span class="ai-error-value">${error.is_rate_limit ? 'Yes' : 'No'}</span>
+                </div>
+                <div class="ai-error-item">
+                    <span class="ai-error-label">Message:</span>
+                    <span class="ai-error-value">${error.message}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function getErrorTypeClass(errorType) {
+    switch (errorType) {
+        case 'QUOTA_EXCEEDED':
+            return 'quota';
+        case 'RATE_LIMIT':
+            return 'rate-limit';
+        case 'DEPRECATED_MODEL':
+            return 'deprecated';
+        default:
+            return 'unknown';
+    }
+}
+
+function refreshAILogs() {
+    const body = document.getElementById('aiLogsBody');
+    
+    // Show loading state
+    body.innerHTML = `
+        <div class="ai-logs-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Refreshing AI service status...</p>
+        </div>
+    `;
+    
+    // Reload data
+    loadAILogsData();
+}
+
+// Show full AI logs in a new modal
+async function showFullAILogs() {
+    try {
+        const response = await fetch('/debug/ai-logs-full');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Create a new modal for full logs
+        const fullLogsModal = document.createElement('div');
+        fullLogsModal.className = 'modal';
+        fullLogsModal.id = 'fullLogsModal';
+        fullLogsModal.innerHTML = `
+            <div class="modal-content full-logs-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-file-alt"></i> Complete AI Service Logs</h3>
+                    <button class="close-btn" onclick="closeFullLogsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="full-logs-content">
+                        <pre id="fullLogsText">${data.logs || 'No logs available'}</pre>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(fullLogsModal);
+        fullLogsModal.style.display = 'flex';
+        
+        // Add escape key handler
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeFullLogsModal();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+        
+    } catch (error) {
+        console.error('Error loading full logs:', error);
+        alert('Failed to load full logs: ' + error.message);
+    }
+}
+
+function closeFullLogsModal() {
+    const modal = document.getElementById('fullLogsModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function displayAILogsError(errorMessage) {
+    const body = document.getElementById('aiLogsBody');
+    
+    body.innerHTML = `
+        <div class="ai-logs-content">
+            <div class="ai-error-section">
+                <div class="ai-error-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Error Loading AI Logs
+                </div>
+                <div class="ai-error-details">
+                    <p>Failed to load AI service information:</p>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 10px;">${errorMessage}</pre>
+                </div>
+            </div>
+            <div class="ai-logs-actions">
+                <button class="ai-logs-btn refresh" onclick="refreshAILogs()">
+                    <i class="fas fa-sync-alt"></i> Retry
+                </button>
+                <button class="ai-logs-btn" onclick="closeAILogsModal()">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Handle click outside AI logs modal to close
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('aiLogsModal');
+    if (event.target === modal) {
+        closeAILogsModal();
+    }
+});
+
+// Rescan a card image from the unknown sets review
+async function rescanCard(scanId) {
+    try {
+        // Get the scan information to find the image file
+        const scanInfoResponse = await fetch(`/scan/${scanId}/info`);
+        if (!scanInfoResponse.ok) {
+            throw new Error('Failed to get scan information');
+        }
+        
+        const scanInfo = await scanInfoResponse.json();
+        
+        // Get the image file from the server
+        const imageResponse = await fetch(`/${scanInfo.image_filename}`);
+        if (!imageResponse.ok) {
+            throw new Error('Failed to get scan image');
+        }
+        
+        const imageBlob = await imageResponse.blob();
+        const imageFile = new File([imageBlob], scanInfo.image_filename, {
+            type: imageBlob.type
+        });
+        
+        // Close the unknown sets modal
+        closeUnknownSetsModal();
+        
+        // Start the scan process with the image file
+        const scanResult = await uploadAndScan([imageFile]);
+        
+        if (scanResult.success) {
+            // Open scanning modal and start the workflow
+            await showScanningModal(scanResult.scan_id, [imageFile]);
+        } else {
+            alert(`Error starting rescan: ${scanResult.error}`);
+        }
+        
+    } catch (error) {
+        console.error('Error rescanning card:', error);
+        alert('Error rescanning card. Please try again.');
+    }
+}
+
+// Show AI response modal
+async function showAIResponse(scanId) {
+    try {
+        const response = await fetch(`/scan/${scanId}/ai-response`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch AI response');
+        }
+        
+        const data = await response.json();
+        
+        // Create AI response modal
+        const modal = document.createElement('div');
+        modal.className = 'modal ai-response-modal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="modal-content ai-response-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-brain"></i> AI Response Details - Scan #${scanId}</h3>
+                    <button class="close-btn" onclick="closeAIResponseModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="ai-response-body">
+                    <div class="ai-response-section">
+                        ${createAIResponseContent(data)}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to body
+        document.body.appendChild(modal);
+        
+        // Store reference for closing
+        window.currentAIResponseModal = modal;
+        
+        // Add escape key handler
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeAIResponseModal();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+        
+    } catch (error) {
+        console.error('Error fetching AI response:', error);
+        alert('Failed to load AI response details. Please try again.');
+    }
+}
+
+// Create AI response content
+function createAIResponseContent(data) {
+    if (!data.has_ai_response) {
+        return `
+            <div class="ai-response-section">
+                <div class="ai-response-status no-response">
+                    <i class="fas fa-info-circle"></i>
+                    <h4>No AI Response Available</h4>
+                    <p>${data.message || 'No raw AI response was stored for this scan.'}</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Parse the response to detect if it's a refusal or successful identification
+    const rawResponse = data.ai_raw_response || '';
+    const isRefusal = rawResponse.toLowerCase().includes("i'm unable to identify") || 
+                     rawResponse.toLowerCase().includes("i cannot identify") ||
+                     rawResponse.toLowerCase().includes("i can't identify");
+    
+    const createdAt = data.created_at ? new Date(data.created_at).toLocaleString() : 'Unknown';
+    
+    return `
+        <div class="ai-response-section">
+            <div class="ai-response-meta">
+                <div class="ai-response-info">
+                    <span class="ai-response-label">Scan ID:</span>
+                    <span class="ai-response-value">${data.scan_id}</span>
+                </div>
+                <div class="ai-response-info">
+                    <span class="ai-response-label">Cards Found:</span>
+                    <span class="ai-response-value">${data.cards_found}</span>
+                </div>
+                <div class="ai-response-info">
+                    <span class="ai-response-label">Response Time:</span>
+                    <span class="ai-response-value">${createdAt}</span>
+                </div>
+                <div class="ai-response-info">
+                    <span class="ai-response-label">Response Type:</span>
+                    <span class="ai-response-value ${isRefusal ? 'refusal' : 'success'}">
+                        ${isRefusal ? 'AI Refusal' : 'Successful Identification'}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="ai-response-content-section">
+                <h4><i class="fas fa-robot"></i> Raw AI Response</h4>
+                <div class="ai-response-text ${isRefusal ? 'refusal-text' : 'success-text'}">
+                    <pre>${rawResponse}</pre>
+                </div>
+            </div>
+            
+            ${isRefusal ? `
+                <div class="ai-response-help">
+                    <h4><i class="fas fa-lightbulb"></i> Tips for Better Results</h4>
+                    <ul>
+                        <li>Ensure good lighting and clear card visibility</li>
+                        <li>Try capturing cards individually rather than in groups</li>
+                        <li>Make sure card text and set symbols are clearly visible</li>
+                        <li>Avoid reflections and shadows on card surfaces</li>
+                        <li>Take photos from directly above the cards</li>
+                    </ul>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Close AI response modal
+function closeAIResponseModal() {
+    if (window.currentAIResponseModal) {
+        document.body.removeChild(window.currentAIResponseModal);
+        window.currentAIResponseModal = null;
+    }
+}
+
+// ... existing code ...
