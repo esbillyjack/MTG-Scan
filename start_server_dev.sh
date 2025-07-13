@@ -20,7 +20,7 @@ export ENV_MODE="development"
 mkdir -p logs
 
 # Start development server with nohup to persist through sleep/lock
-nohup venv/bin/python backend/app.py > logs/server_dev.log 2>&1 &
+nohup env ENV_MODE=development PORT=8001 PYTHONPATH="${PYTHONPATH}:$(pwd)/backend" venv/bin/python backend/app.py > logs/server_dev.log 2>&1 &
 
 # Get the process ID
 SERVER_PID=$!

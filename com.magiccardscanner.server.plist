@@ -9,7 +9,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>cd /Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner && source venv/bin/activate && python backend/app.py</string>
+        <string>cd /Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner-production && source venv/bin/activate && python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000</string>
     </array>
     
     <key>RunAtLoad</key>
@@ -19,18 +19,22 @@
     <true/>
     
     <key>StandardOutPath</key>
-    <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner/logs/server.log</string>
+    <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner-production/logs/server.log</string>
     
     <key>StandardErrorPath</key>
-    <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner/logs/server.log</string>
+    <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner-production/logs/server.log</string>
     
     <key>WorkingDirectory</key>
-    <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner</string>
+    <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner-production</string>
     
     <key>EnvironmentVariables</key>
     <dict>
         <key>PYTHONPATH</key>
-        <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner</string>
+        <string>/Users/billjackson/Downloads/working/experiments/projects/magic-card-scanner-production</string>
+        <key>ENV_MODE</key>
+        <string>production</string>
+        <key>PORT</key>
+        <string>8000</string>
     </dict>
 </dict>
 </plist> 
