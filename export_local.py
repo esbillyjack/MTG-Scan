@@ -16,7 +16,11 @@ import platform
 
 def get_database_connection():
     """Get database connection."""
-    db_path = Path(__file__).parent / "magic_cards.db"
+    env_mode = os.getenv("ENV_MODE", "production")
+    if env_mode == "development":
+        db_path = Path(__file__).parent / "magic_cards_dev.db"
+    else:
+        db_path = Path(__file__).parent / "magic_cards.db"
     return sqlite3.connect(str(db_path))
 
 def export_cards_to_file(file_path, file_format="csv", overwrite=False):

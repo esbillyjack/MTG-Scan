@@ -7,7 +7,13 @@ import uuid
 import json
 
 # Database setup
-DATABASE_URL = "sqlite:///./magic_cards.db"
+# Use environment-specific database files
+env_mode = os.getenv("ENV_MODE", "production")
+if env_mode == "development":
+    DATABASE_URL = "sqlite:///./magic_cards_dev.db"
+else:
+    DATABASE_URL = "sqlite:///./magic_cards.db"
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

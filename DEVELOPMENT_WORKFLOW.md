@@ -103,8 +103,12 @@ git push origin develop
 
 ### Branch Overview
 - **`production`**: v1.0 - Export functionality fixes (Commit: 853e31c)
+  - **Server**: http://localhost:8000 (Production)
+  - **Database**: `magic_cards.db`
 - **`main`**: v1.0 - Same as production, ready for next release
 - **`develop`**: v1.1-dev - Active development branch
+  - **Server**: http://localhost:8001 (Development)  
+  - **Database**: `magic_cards_dev.db`
 
 ### Recent Production Features
 - ✅ Comprehensive sorting functionality
@@ -119,6 +123,32 @@ git push origin develop
 - [ ] Bulk import improvements
 - [ ] Advanced search and filtering
 - [ ] Performance optimizations
+
+## Development Environment Setup
+
+### Server Configuration
+- **Production Server**: `./start_server.sh` → http://localhost:8000
+- **Development Server**: `./start_server_dev.sh` → http://localhost:8001
+- **Both can run simultaneously** for testing and development
+
+### Database Setup
+```bash
+# Set up development database (copies from production)
+./setup_dev_database.sh
+
+# Start development server
+./start_server_dev.sh
+
+# Check development server status
+./check_server_dev.sh
+
+# Stop development server
+./stop_server_dev.sh
+```
+
+### Environment Variables
+- **Production**: `ENV_MODE=production`, `PORT=8000`
+- **Development**: `ENV_MODE=development`, `PORT=8001`
 
 ## Best Practices
 

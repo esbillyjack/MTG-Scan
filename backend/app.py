@@ -1589,4 +1589,14 @@ async def get_scan_ai_response(scan_id: int, db: Session = Depends(get_db)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    import os
+    
+    # Get port from environment variable, default to 8000 for production
+    port = int(os.getenv("PORT", 8000))
+    
+    # Get environment mode
+    env_mode = os.getenv("ENV_MODE", "production")
+    
+    print(f"🚀 Starting Magic Card Scanner Server in {env_mode} mode on port {port}")
+    
+    uvicorn.run(app, host="0.0.0.0", port=port) 
