@@ -8,7 +8,7 @@ import re
 import time
 import logging
 from datetime import datetime
-from set_symbol_validator import SetSymbolValidator
+from .set_symbol_validator import SetSymbolValidator
 
 load_dotenv()
 
