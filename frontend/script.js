@@ -455,7 +455,6 @@ async function loadCards() {
         cards = data.cards || [];
         
         displayCards();
-        updateStats(data);
     } catch (error) {
         console.error('Error loading cards:', error);
         cards = [];
@@ -483,6 +482,7 @@ function displayCards() {
                     const duplicateData = card.duplicates[0];
                     const individualCard = {
                         id: duplicateData.id,
+                        unique_id: duplicateData.unique_id,
                         name: card.name,
                         set_name: duplicateData.set_name || card.set_name,
                         set_code: duplicateData.set_code || card.set_code,
@@ -676,6 +676,7 @@ function showIndividualCardFromSpread(cardData, parentCard) {
     const combinedCard = {
         ...parentCard,
         id: cardData.id,
+        unique_id: cardData.unique_id,
         count: cardData.count,
         condition: cardData.condition,
         notes: cardData.notes,
@@ -691,6 +692,7 @@ function showIndividualCardFromSpread(cardData, parentCard) {
             stackCards.push({
                 ...parentCard,
                 id: duplicate.id,
+                unique_id: duplicate.unique_id,
                 count: duplicate.count,
                 condition: duplicate.condition,
                 notes: duplicate.notes,
@@ -826,8 +828,8 @@ async function loadStats() {
         const stats = await response.json();
         
         // Always show total stats (including examples) to give accurate count
-        document.getElementById('totalCards').textContent = stats.total_unique_cards;
-        document.getElementById('totalCount').textContent = stats.total_card_count;
+        document.getElementById('totalCards').textContent = stats.total_cards;
+        document.getElementById('totalCount').textContent = stats.total_count;
         document.getElementById('totalValue').textContent = `$${stats.total_value_usd.toFixed(2)}`;
     } catch (error) {
         console.error('Error loading stats:', error);
@@ -1444,6 +1446,7 @@ async function updateCardCondition(cardId, newCondition) {
         });
         if (response.ok) {
             await loadCards();
+            await loadStats();
         } else {
             alert('Failed to update card condition.');
         }
@@ -1485,6 +1488,7 @@ async function updateCardSet(cardId, newSetValue) {
         });
         if (response.ok) {
             await loadCards();
+            await loadStats();
         } else {
             alert('Failed to update card set.');
         }
@@ -4366,3 +4370,163 @@ async function capturePhoto() {
 }
 
 // ... existing code ...
+
+function exportToSheets() {
+    // Show the export modal instead of immediately exporting
+    const exportModal = document.getElementById('exportModal');
+    const exportFilePath = document.getElementById('exportFilePath');
+    const exportFormat = document.getElementById('exportFormat');
+    
+    // Set default values - CSV format and empty path
+    exportFormat.value = 'csv';
+    exportFilePath.value = '';
+    
+    exportModal.style.display = 'flex';
+}
+
+function closeExportModal() {
+    const exportModal = document.getElementById('exportModal');
+    const exportForm = document.querySelector('.export-form');
+    const exportProgress = document.getElementById('exportProgress');
+    
+    exportModal.style.display = 'none';
+    exportForm.style.display = 'block';
+    exportProgress.style.display = 'none';
+}
+
+function browseForFile() {
+    const format = document.getElementById('exportFormat').value;
+    const extension = format === 'excel' ? 'xlsx' : 'csv';
+    const defaultName = `magic_cards_export.${extension}`;
+    
+    // Since web browsers can't directly browse for save locations,
+    // we'll prompt the user to enter the path
+    const currentPath = document.getElementById('exportFilePath').value;
+    const suggestedPath = currentPath || defaultName;
+    
+    const userPath = prompt(`Enter the full file path where you want to save the export:\n\nExample: /Users/username/Downloads/${defaultName}`, suggestedPath);
+    
+    if (userPath) {
+        document.getElementById('exportFilePath').value = userPath;
+    }
+}
+
+async function startExport() {
+    const exportForm = document.querySelector('.export-form');
+    const exportProgress = document.getElementById('exportProgress');
+    const exportProgressFill = document.getElementById('exportProgressFill');
+    const exportProgressText = document.getElementById('exportProgressText');
+    
+    const filePath = document.getElementById('exportFilePath').value.trim();
+    const format = document.getElementById('exportFormat').value;
+    
+    if (!filePath) {
+        alert('Please specify a file path');
+        return;
+    }
+    
+    // Show progress
+    exportForm.style.display = 'none';
+    exportProgress.style.display = 'block';
+    
+    try {
+        // Update progress
+        exportProgressFill.style.width = '20%';
+        exportProgressText.textContent = 'Preparing export...';
+        
+        // First attempt without overwrite
+        let response = await fetch('/export/local', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_path: filePath,
+                format: format,
+                overwrite: false
+            })
+        });
+        
+        let data = await response.json();
+        
+        // If file exists, ask for confirmation
+        if (!data.success && data.file_exists) {
+            const confirmOverwrite = confirm(`File already exists: ${filePath}\n\nDo you want to overwrite it?`);
+            if (confirmOverwrite) {
+                // Retry with overwrite = true
+                response = await fetch('/export/local', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        format: format,
+                        overwrite: true
+                    })
+                });
+                data = await response.json();
+            } else {
+                // User cancelled, reset form
+                exportForm.style.display = 'block';
+                exportProgress.style.display = 'none';
+                return;
+            }
+        }
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Export failed');
+        }
+        
+        exportProgressFill.style.width = '50%';
+        exportProgressText.textContent = 'Exporting files...';
+        
+        // Simulate progress completion
+        setTimeout(() => {
+            exportProgressFill.style.width = '100%';
+            exportProgressText.textContent = 'Export completed!';
+            
+            // Close modal after short delay
+            setTimeout(() => {
+                closeExportModal();
+                
+                // Show success message with file info
+                const notification = document.createElement('div');
+                notification.className = 'notification success';
+                notification.innerHTML = `
+                    <i class="fas fa-check-circle"></i>
+                    <span>Export completed successfully!<br><small>File: ${data.filename} (${data.record_count} records)</small></span>
+                `;
+                document.body.appendChild(notification);
+                
+                // Remove notification after 5 seconds
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+            }, 1000);
+        }, 500);
+        
+    } catch (error) {
+        console.error('Export error:', error);
+        
+        // Reset form
+        exportForm.style.display = 'block';
+        exportProgress.style.display = 'none';
+        
+        // Show error message
+        const notification = document.createElement('div');
+        notification.className = 'notification error';
+        notification.innerHTML = `
+            <i class="fas fa-exclamation-circle"></i>
+            <span>Export failed: ${error.message}</span>
+        `;
+        document.body.appendChild(notification);
+        
+        // Remove notification after 3 seconds
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+}
+
+// ... rest of the existing code ...

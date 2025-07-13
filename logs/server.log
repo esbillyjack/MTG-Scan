@@ -1,0 +1,6 @@
+INFO:     Started server process [75739]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:__main__:🎯 FRONTEND DEBUG: Sample individual card data sent to frontend: name='Ashnod's Altar', set_code='cmm', set_name='Commander Masters'
+INFO:     127.0.0.1:62859 - "GET /cards?view_mode=individual HTTP/1.1" 200 OK

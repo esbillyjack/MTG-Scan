@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, Float
 from typing import List, Dict, Any
 import os
 import shutil
@@ -10,6 +10,10 @@ from datetime import datetime
 import aiofiles
 import uuid
 import logging
+import subprocess
+import sys
+import json
+from pathlib import Path
 
 from database import get_db, init_db, Card, Scan, ScanImage, ScanResult
 from ai_processor import CardRecognitionAI
@@ -257,34 +261,34 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
         for card in cards:
             group_key = card.duplicate_group or f"{card.name}|{card.set_code}|{card.collector_number}"
             if group_key not in grouped_cards:
-                            grouped_cards[group_key] = {
-                "stack_id": card.stack_id,
-                "name": card.name,
-                "set_name": card.set_name,
-                "set_code": card.set_code,
-                "collector_number": card.collector_number,
-                "rarity": card.rarity,
-                "mana_cost": card.mana_cost,
-                "type_line": card.type_line,
-                "oracle_text": card.oracle_text,
-                "flavor_text": card.flavor_text,
-                "power": card.power,
-                "toughness": card.toughness,
-                "colors": card.colors,
-                "price_usd": card.price_usd,
-                "price_eur": card.price_eur,
-                "price_tix": card.price_tix,
-                "count": card.count,  # Add individual card count
-                "stack_count": 0,  # Will sum all counts
-                "total_cards": 0,  # Number of individual card entries
-                "first_seen": card.first_seen.isoformat() if card.first_seen else None,
-                "last_seen": card.last_seen.isoformat() if card.last_seen else None,
-                "image_url": card.image_url,
-                "duplicate_group": card.duplicate_group,
-                "is_example": card.is_example,
+                grouped_cards[group_key] = {
+                    "stack_id": card.stack_id,
+                    "name": card.name,
+                    "set_name": card.set_name,
+                    "set_code": card.set_code,
+                    "collector_number": card.collector_number,
+                    "rarity": card.rarity,
+                    "mana_cost": card.mana_cost,
+                    "type_line": card.type_line,
+                    "oracle_text": card.oracle_text,
+                    "flavor_text": card.flavor_text,
+                    "power": card.power,
+                    "toughness": card.toughness,
+                    "colors": card.colors,
+                    "price_usd": card.price_usd,
+                    "price_eur": card.price_eur,
+                    "price_tix": card.price_tix,
+                    "count": card.count,  # Add individual card count
+                    "stack_count": 0,  # Will sum all counts
+                    "total_cards": 0,  # Number of individual card entries
+                    "first_seen": card.first_seen.isoformat() if card.first_seen else None,
+                    "last_seen": card.last_seen.isoformat() if card.last_seen else None,
+                    "image_url": card.image_url,
+                    "duplicate_group": card.duplicate_group,
+                    "is_example": card.is_example,
                 "scan_id": getattr(card, 'scan_id', None),
-                "duplicates": []
-            }
+                    "duplicates": []
+                }
             
             grouped_cards[group_key]["stack_count"] += card.count
             grouped_cards[group_key]["total_cards"] += 1
@@ -527,46 +531,120 @@ async def delete_card(card_id: int, db: Session = Depends(get_db)):
 
 @app.get("/stats")
 async def get_stats(db: Session = Depends(get_db)):
-    """Get database statistics with condition-adjusted pricing"""
-    # Get all non-deleted cards for condition-adjusted calculations
-    all_cards = db.query(Card).filter(Card.deleted == False).all()
-    owned_cards_list = [card for card in all_cards if not card.is_example]
-    
-    # Basic counts
-    total_cards = len(all_cards)
-    total_count = sum(card.count for card in all_cards)
-    owned_cards = len(owned_cards_list)
-    owned_count = sum(card.count for card in owned_cards_list)
-    
-    # Calculate condition-adjusted values
-    total_value_usd = sum(
-        get_condition_adjusted_price(card.price_usd or 0, card.condition) * card.count
-        for card in all_cards
-    )
-    total_value_eur = sum(
-        get_condition_adjusted_price(card.price_eur or 0, card.condition) * card.count
-        for card in all_cards
-    )
-    
-    owned_value_usd = sum(
-        get_condition_adjusted_price(card.price_usd or 0, card.condition) * card.count
-        for card in owned_cards_list
-    )
-    owned_value_eur = sum(
-        get_condition_adjusted_price(card.price_eur or 0, card.condition) * card.count
-        for card in owned_cards_list
-    )
-    
-    return {
-        "total_unique_cards": total_cards,
-        "total_card_count": total_count,
-        "total_value_usd": round(total_value_usd, 2),
-        "total_value_eur": round(total_value_eur, 2),
-        "owned_unique_cards": owned_cards,
-        "owned_card_count": owned_count,
-        "owned_value_usd": round(owned_value_usd, 2),
-        "owned_value_eur": round(owned_value_eur, 2)
-    }
+    """Get database statistics"""
+    try:
+        # Get total number of unique cards
+        total_cards = db.query(Card).filter(Card.deleted == False).count()
+        
+        # Get total count of all cards (including duplicates)
+        total_count = db.query(func.sum(Card.count)).filter(Card.deleted == False).scalar() or 0
+        
+        # Calculate total value (USD) - simplified calculation
+        cards_for_value = db.query(Card).filter(Card.deleted == False).all()
+        total_value = sum(
+            (card.price_usd or 0) * card.count * get_condition_adjusted_price(1.0, card.condition)
+            for card in cards_for_value
+        )
+        
+        # Get counts by rarity
+        rarity_counts = db.query(
+            Card.rarity,
+            func.count(Card.id).label('unique_count'),
+            func.sum(Card.count).label('total_count')
+        ).filter(Card.deleted == False).group_by(Card.rarity).all()
+        
+        rarity_stats = {}
+        for rarity, unique_count, count in rarity_counts:
+            rarity_stats[rarity or 'Unknown'] = {
+                'unique_count': unique_count,
+                'total_count': count
+            }
+        
+        # Get counts by condition
+        condition_counts = db.query(
+            Card.condition,
+            func.count(Card.id).label('unique_count'),
+            func.sum(Card.count).label('total_count')
+        ).filter(Card.deleted == False).group_by(Card.condition).all()
+        
+        condition_stats = {}
+        for condition, unique_count, count in condition_counts:
+            condition_stats[condition or 'Unknown'] = {
+                'unique_count': unique_count,
+                'total_count': count
+            }
+        
+        return {
+            "total_cards": total_cards,
+            "total_count": total_count,
+            "total_value_usd": round(total_value, 2),
+            "rarity_stats": rarity_stats,
+            "condition_stats": condition_stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/export/local")
+async def export_to_local(request_data: dict = None, db: Session = Depends(get_db)):
+    """Export card database to local CSV and Excel files"""
+    try:
+        # Get parameters from request
+        file_path = request_data.get('file_path', '') if request_data else ''
+        file_format = request_data.get('format', 'csv') if request_data else 'csv'
+        overwrite = request_data.get('overwrite', False) if request_data else False
+        
+        if not file_path:
+            raise HTTPException(status_code=400, detail="File path is required")
+        
+        # Run the export script as a subprocess
+        process = subprocess.Popen(
+            [sys.executable, 'export_local.py', file_path, file_format, str(overwrite).lower()],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate()
+        
+        logger.info(f"Export stdout: {stdout}")
+        if stderr:
+            logger.warning(f"Export stderr: {stderr}")
+        
+        if process.returncode != 0:
+            logger.error(f"Export failed with return code {process.returncode}")
+            logger.error(f"Export stderr: {stderr}")
+            # Return the actual error message from the script
+            error_message = stderr.strip() if stderr.strip() else "Export failed"
+            raise HTTPException(status_code=500, detail=error_message)
+            
+        # Parse the JSON response from the export script
+        try:
+            result = json.loads(stdout)
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "message": "Export completed successfully",
+                    "file_path": result.get("file_path"),
+                    "filename": Path(result.get("file_path", "")).name,
+                    "record_count": result.get("record_count", 0),
+                    "format": result.get("format", file_format)
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Unknown error"),
+                    "file_exists": result.get("file_exists", False)
+                }
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse export script output: {stdout}")
+            raise HTTPException(status_code=500, detail="Invalid response from export script")
+        
+    except Exception as e:
+        logger.error(f"Export error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # New Scan Management Endpoints
