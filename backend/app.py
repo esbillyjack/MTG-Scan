@@ -23,6 +23,21 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(title="Magic Card Scanner", version="1.0.0")
 
+# Condition multipliers for realistic pricing
+CONDITION_MULTIPLIERS = {
+    'NM': 1.0,      # Near Mint: 100%
+    'LP': 0.85,     # Lightly Played: 85%
+    'MP': 0.70,     # Moderately Played: 70%
+    'HP': 0.50,     # Heavily Played: 50%
+    'DMG': 0.35,    # Damaged: 35%
+    'UNKNOWN': 0.85 # Conservative estimate
+}
+
+def get_condition_adjusted_price(base_price: float, condition: str) -> float:
+    """Calculate condition-adjusted price"""
+    multiplier = CONDITION_MULTIPLIERS.get(condition, CONDITION_MULTIPLIERS['UNKNOWN'])
+    return base_price * multiplier
+
 # Create uploads directory
 os.makedirs("uploads", exist_ok=True)
 
@@ -242,33 +257,34 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
         for card in cards:
             group_key = card.duplicate_group or f"{card.name}|{card.set_code}|{card.collector_number}"
             if group_key not in grouped_cards:
-                grouped_cards[group_key] = {
-                    "stack_id": card.stack_id,
-                    "name": card.name,
-                    "set_name": card.set_name,
-                    "set_code": card.set_code,
-                    "collector_number": card.collector_number,
-                    "rarity": card.rarity,
-                    "mana_cost": card.mana_cost,
-                    "type_line": card.type_line,
-                    "oracle_text": card.oracle_text,
-                    "flavor_text": card.flavor_text,
-                    "power": card.power,
-                    "toughness": card.toughness,
-                    "colors": card.colors,
-                    "price_usd": card.price_usd,
-                    "price_eur": card.price_eur,
-                    "price_tix": card.price_tix,
-                    "count": card.count,  # Add individual card count
-                    "stack_count": 0,  # Will sum all counts
-                    "total_cards": 0,  # Number of individual card entries
-                    "first_seen": card.first_seen.isoformat() if card.first_seen else None,
-                    "last_seen": card.last_seen.isoformat() if card.last_seen else None,
-                    "image_url": card.image_url,
-                    "duplicate_group": card.duplicate_group,
-                    "is_example": card.is_example,
-                    "duplicates": []
-                }
+                            grouped_cards[group_key] = {
+                "stack_id": card.stack_id,
+                "name": card.name,
+                "set_name": card.set_name,
+                "set_code": card.set_code,
+                "collector_number": card.collector_number,
+                "rarity": card.rarity,
+                "mana_cost": card.mana_cost,
+                "type_line": card.type_line,
+                "oracle_text": card.oracle_text,
+                "flavor_text": card.flavor_text,
+                "power": card.power,
+                "toughness": card.toughness,
+                "colors": card.colors,
+                "price_usd": card.price_usd,
+                "price_eur": card.price_eur,
+                "price_tix": card.price_tix,
+                "count": card.count,  # Add individual card count
+                "stack_count": 0,  # Will sum all counts
+                "total_cards": 0,  # Number of individual card entries
+                "first_seen": card.first_seen.isoformat() if card.first_seen else None,
+                "last_seen": card.last_seen.isoformat() if card.last_seen else None,
+                "image_url": card.image_url,
+                "duplicate_group": card.duplicate_group,
+                "is_example": card.is_example,
+                "scan_id": getattr(card, 'scan_id', None),
+                "duplicates": []
+            }
             
             grouped_cards[group_key]["stack_count"] += card.count
             grouped_cards[group_key]["total_cards"] += 1
@@ -323,6 +339,7 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
                     "count": card.count,
                     "stack_count": card.stack_count,
                     "stack_id": card.stack_id,
+                    "scan_id": getattr(card, 'scan_id', None),
                     "first_seen": card.first_seen.isoformat() if card.first_seen else None,
                     "last_seen": card.last_seen.isoformat() if card.last_seen else None,
                     "image_url": card.image_url,
@@ -417,6 +434,7 @@ async def get_card(card_id: int, db: Session = Depends(get_db)):
         "condition": card.condition,
         "is_example": card.is_example,
         "duplicate_group": card.duplicate_group,
+        "scan_id": getattr(card, 'scan_id', None),
         "first_seen": card.first_seen.isoformat() if card.first_seen else None,
         "last_seen": card.last_seen.isoformat() if card.last_seen else None
     }
@@ -509,18 +527,35 @@ async def delete_card(card_id: int, db: Session = Depends(get_db)):
 
 @app.get("/stats")
 async def get_stats(db: Session = Depends(get_db)):
-    """Get database statistics"""
-    # Filter out deleted cards for total statistics
-    total_cards = db.query(Card).filter(Card.deleted == False).count()
-    total_count = db.query(Card).filter(Card.deleted == False).with_entities(func.sum(Card.count)).scalar() or 0
-    total_value_usd = db.query(Card).filter(Card.deleted == False).with_entities(func.sum(Card.price_usd * Card.count)).scalar() or 0
-    total_value_eur = db.query(Card).filter(Card.deleted == False).with_entities(func.sum(Card.price_eur * Card.count)).scalar() or 0
+    """Get database statistics with condition-adjusted pricing"""
+    # Get all non-deleted cards for condition-adjusted calculations
+    all_cards = db.query(Card).filter(Card.deleted == False).all()
+    owned_cards_list = [card for card in all_cards if not card.is_example]
     
-    # Filter out example cards AND deleted cards for owned statistics
-    owned_cards = db.query(Card).filter(Card.is_example == False, Card.deleted == False).count()
-    owned_count = db.query(Card).filter(Card.is_example == False, Card.deleted == False).with_entities(func.sum(Card.count)).scalar() or 0
-    owned_value_usd = db.query(Card).filter(Card.is_example == False, Card.deleted == False).with_entities(func.sum(Card.price_usd * Card.count)).scalar() or 0
-    owned_value_eur = db.query(Card).filter(Card.is_example == False, Card.deleted == False).with_entities(func.sum(Card.price_eur * Card.count)).scalar() or 0
+    # Basic counts
+    total_cards = len(all_cards)
+    total_count = sum(card.count for card in all_cards)
+    owned_cards = len(owned_cards_list)
+    owned_count = sum(card.count for card in owned_cards_list)
+    
+    # Calculate condition-adjusted values
+    total_value_usd = sum(
+        get_condition_adjusted_price(card.price_usd or 0, card.condition) * card.count
+        for card in all_cards
+    )
+    total_value_eur = sum(
+        get_condition_adjusted_price(card.price_eur or 0, card.condition) * card.count
+        for card in all_cards
+    )
+    
+    owned_value_usd = sum(
+        get_condition_adjusted_price(card.price_usd or 0, card.condition) * card.count
+        for card in owned_cards_list
+    )
+    owned_value_eur = sum(
+        get_condition_adjusted_price(card.price_eur or 0, card.condition) * card.count
+        for card in owned_cards_list
+    )
     
     return {
         "total_unique_cards": total_cards,

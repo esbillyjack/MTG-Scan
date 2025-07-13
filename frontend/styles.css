@@ -144,6 +144,23 @@ body {
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
 }
 
+/* Camera button specific styles */
+.upload-btn.camera-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    padding: 0;
+    margin-left: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.upload-btn.camera-btn:hover {
+    transform: translateY(-2px) scale(1.05);
+}
+
 /* Progress bar */
 .upload-progress {
     margin-top: 20px;
@@ -470,19 +487,38 @@ body {
     object-fit: cover;
 }
 
+/* Count badge for cards with multiple copies */
+.count-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    z-index: 10;
+    min-width: 20px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 /* Stack count badge */
 .stack-count-badge {
     position: absolute;
     top: 8px;
     right: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: rgba(0, 0, 0, 0.8);
     color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    min-width: 20px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* Example badges - Position over top 10% of image */
@@ -687,6 +723,113 @@ body {
 .price-usd { background: #d4edda; color: #155724; }
 .price-eur { background: #d1ecf1; color: #0c5460; }
 .price-tix { background: #fff3cd; color: #856404; }
+
+.condition-note {
+    font-size: 0.8em;
+    color: #666;
+    font-style: italic;
+    margin-left: 8px;
+}
+
+/* Read-only field styling */
+.read-only-field {
+    color: #666;
+    font-style: italic;
+    padding: 2px 4px;
+    background-color: #f8f9fa;
+    border-radius: 3px;
+    border: 1px solid #e9ecef;
+}
+
+/* Scan section styling */
+.scan-section {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 2px solid #2196F3;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    text-align: center;
+}
+
+.scan-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: #1976d2;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.scan-info i {
+    font-size: 1.1rem;
+    color: #2196F3;
+}
+
+.view-scan-btn-prominent {
+    background: linear-gradient(135deg, #2196F3 0%, #1976d2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 auto;
+}
+
+.view-scan-btn-prominent:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(33, 150, 243, 0.6);
+    background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+}
+
+.view-scan-btn-prominent:active {
+    transform: translateY(0);
+}
+
+.view-scan-btn-prominent i {
+    font-size: 1.1rem;
+}
+
+/* Spread scan section styling */
+.spread-scan-section {
+    margin-top: 8px;
+    text-align: center;
+}
+
+.view-scan-btn-small-prominent {
+    background: linear-gradient(135deg, #2196F3 0%, #1976d2 100%);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+}
+
+.view-scan-btn-small-prominent:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.6);
+    background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+}
+
+.view-scan-btn-small-prominent i {
+    font-size: 0.8rem;
+}
 
 .oracle-text {
     background: #f8f9fa;
@@ -1475,14 +1618,16 @@ input:checked + .slider:before {
     position: absolute;
     top: 8px;
     right: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: rgba(0, 0, 0, 0.8);
     color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    min-width: 20px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* Search Container */
@@ -4030,4 +4175,98 @@ input:checked + .slider:before {
         font-size: 0.8rem;
         max-height: 200px;
     }
+}
+
+/* Camera Modal Styles */
+.camera-modal-content {
+    max-width: 90vw;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+}
+
+.camera-container {
+    text-align: center;
+    padding: 20px;
+}
+
+#cameraVideo {
+    width: 100%;
+    max-width: 500px;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.camera-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+    padding: 0 20px 20px;
+}
+
+.camera-action-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    min-height: 44px;
+    touch-action: manipulation;
+}
+
+.camera-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.camera-action-btn.cancel-btn {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.camera-action-btn.cancel-btn:hover {
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+}
+
+@media (max-width: 768px) {
+    .camera-modal-content {
+        margin: 10px;
+        max-width: calc(100vw - 20px);
+        max-height: calc(100vh - 20px);
+    }
+    
+    .camera-controls {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .camera-action-btn {
+        width: 100%;
+    }
+}
+
+.scan-emoji-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.7rem;
+    color: #4fc3f7;
+    margin-left: 10px;
+    padding: 2px 6px;
+    border-radius: 50%;
+    transition: background 0.2s;
+    vertical-align: middle;
+    outline: none;
+    box-shadow: none;
+}
+.scan-emoji-btn:hover, .scan-emoji-btn:focus {
+    background: #e3f2fd;
+    color: #039be5;
 }

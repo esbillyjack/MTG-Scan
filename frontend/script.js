@@ -8,6 +8,12 @@ let scanPollingInterval = null;
 let fileInputBusy = false; // Flag to prevent multiple file input clicks
 let fileInputTimeout = null; // Timeout to reset busy flag
 
+// Camera variables
+let cameraStream = null;
+let cameraModal = null;
+let cameraVideo = null;
+let cameraCanvas = null;
+
 // DOM elements
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
@@ -27,6 +33,7 @@ const modalBody = document.getElementById('modalBody');
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DEBUG: DOMContentLoaded fired, initializing application');
     setupEventListeners();
+    initializeCamera();
     loadCards();
     loadStats();
     addTestData(); // Add test data with real Magic cards
@@ -52,11 +59,18 @@ function setupEventListeners() {
     
     // Upload area click handler (only if not clicking the button)
     uploadArea.addEventListener('click', (e) => {
-        // Only trigger if we didn't click the button (avoid double firing)
         if (e.target !== uploadBtn && !uploadBtn.contains(e.target)) {
             handleUploadButtonClick();
         }
     });
+    
+    const cameraBtn = document.getElementById('cameraBtn');
+    if (cameraBtn) {
+        cameraBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleCameraClick();
+        });
+    }
     
     uploadArea.addEventListener('dragover', handleDragOver);
     uploadArea.addEventListener('dragleave', handleDragLeave);
@@ -409,11 +423,11 @@ function createResultCard(card) {
             <div class="card-prices">
                 <span class="price price-usd">
                     <i class="fas fa-dollar-sign"></i>
-                    $${(card.price_usd || 0).toFixed(2)}
+                    $${getConditionAdjustedPrice(card.price_usd || 0, card.condition).toFixed(2)}
                 </span>
                 <span class="price price-eur">
                     <i class="fas fa-euro-sign"></i>
-                    €${(card.price_eur || 0).toFixed(2)}
+                    €${getConditionAdjustedPrice(card.price_eur || 0, card.condition).toFixed(2)}
                 </span>
             </div>
             <div class="card-count">Count: ${card.count || 0}</div>
@@ -525,8 +539,12 @@ function createMiniFannedStack(card, index, filteredCards) {
     cardDiv.className = `card-item mini-fanned-stack color-border-${getColorBorder(card.colors)}`;
     cardDiv.onclick = () => showStackSpreadOverlay(index, filteredCards);
     
+    // Calculate values
+    const individualValue = getConditionAdjustedPrice(card.price_usd || 0, card.condition);
+    const combinedValue = individualValue * (card.total_cards || 1);
+    
     // Create stack count badge
-    const stackBadge = `<div class="stack-count-badge">${card.total_cards}</div>`;
+    const stackBadge = card.total_cards > 1 ? `<div class="stack-count-badge">×${card.total_cards}</div>` : '';
     
     // Create example badge if it's an example card
     const exampleBadge = card.is_example ? 
@@ -543,7 +561,7 @@ function createMiniFannedStack(card, index, filteredCards) {
         </div>
         <div class="card-info">
             <div class="card-name">${card.name}</div>
-            <div class="card-count">Count: ${card.total_cards}</div>
+            <div class="card-count">$${combinedValue.toFixed(2)} ($${individualValue.toFixed(2)})</div>
         </div>
     `;
     
@@ -625,15 +643,18 @@ function createSpreadCard(cardData, parentCard, index) {
         <div class="card-info">
             <div class="card-name">${parentCard.name}</div>
             <div class="card-condition">Condition: ${cardData.condition || 'Unknown'}</div>
-            <div class="card-count">Count: ${cardData.count || 1}</div>
+            <div class="card-count">$${getConditionAdjustedPrice(parentCard.price_usd || 0, cardData.condition).toFixed(2)}</div>
             <div class="card-added">
-                Added: ${formatDate(cardData.first_seen)} (${formatAddedMethod(cardData.added_method)})
-                ${cardData.added_method === 'SCANNED' && cardData.scan_id ? 
-                    `<button class="view-scan-btn-small" onclick="viewScanImage(${cardData.scan_id}, '${parentCard.name}')" title="View scanned image">
-                        👓
-                    </button>` : ''
-                }
+                Added: ${formatDateTime(cardData.first_seen)} (${formatAddedMethod(cardData.added_method)})
             </div>
+            ${cardData.added_method === 'SCANNED' && cardData.scan_id ? `
+            <div class="spread-scan-section">
+                <button class="view-scan-btn-small-prominent" onclick="viewScanImage(${cardData.scan_id}, '${parentCard.name}')" title="View original scanned image">
+                    <i class="fas fa-eye"></i>
+                    View Scan
+                </button>
+            </div>
+            ` : ''}
         </div>
     `;
     
@@ -757,18 +778,23 @@ function createDatabaseCard(card, index, filteredCards) {
     // Add example indicator
     const exampleBadge = card.is_example ? '<span class="example-badge">EXAMPLE</span>' : '';
     
-    // Use count from the card, default to 1 if undefined
+    // Calculate card value with condition adjustment
+    const cardValue = getConditionAdjustedPrice(card.price_usd || 0, card.condition);
     const cardCount = card.count || 1;
+    
+    // Create count multiplier badge (only show if count > 1)
+    const countBadge = cardCount > 1 ? `<div class="count-badge">×${cardCount}</div>` : '';
     
     cardDiv.innerHTML = `
         <div class="card-image">
             ${card.image_url ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image"></i>'}
             ${exampleBadge}
+            ${countBadge}
         </div>
         <div class="card-info">
             <div class="card-name">${card.name}</div>
             <div class="card-set">${card.set_name || 'Unknown Set'}</div>
-            <div class="card-count">Count: ${cardCount}</div>
+            <div class="card-count">$${cardValue.toFixed(2)}</div>
         </div>
     `;
     
@@ -920,6 +946,12 @@ async function addTestData() {
     console.log('Test data loaded');
 }
 
+// Calculate condition-adjusted price
+function getConditionAdjustedPrice(basePrice, condition) {
+    const multiplier = CONDITION_MULTIPLIERS[condition] || CONDITION_MULTIPLIERS['UNKNOWN'];
+    return basePrice * multiplier;
+}
+
 // Update stats display
 function updateStats(data) {
     const totalCardsElement = document.getElementById('totalCards');
@@ -936,7 +968,11 @@ function updateStats(data) {
         totalCountElement.textContent = totalCount;
     }
     
-    const totalValue = cards.reduce((sum, card) => sum + (card.price_usd || 0), 0);
+    // Calculate total value with condition adjustments
+    const totalValue = cards.reduce((sum, card) => {
+        const adjustedPrice = getConditionAdjustedPrice(card.price_usd || 0, card.condition);
+        return sum + (adjustedPrice * (card.count || 0));
+    }, 0);
     totalValueElement.textContent = `$${totalValue.toFixed(2)}`;
 }
 
@@ -949,6 +985,16 @@ const CONDITION_OPTIONS = [
     { value: 'HP', label: 'Heavily Played' },
     { value: 'DMG', label: 'Damaged' }
 ];
+
+// Condition multipliers for realistic pricing
+const CONDITION_MULTIPLIERS = {
+    'NM': 1.0,      // Near Mint: 100%
+    'LP': 0.85,     // Lightly Played: 85%
+    'MP': 0.70,     // Moderately Played: 70%
+    'HP': 0.50,     // Heavily Played: 50%
+    'DMG': 0.35,    // Damaged: 35%
+    'UNKNOWN': 0.85 // Conservative estimate
+};
 
 // Standardized rarity options
 const RARITY_OPTIONS = [
@@ -1109,6 +1155,24 @@ function formatDate(dateString) {
     }
 }
 
+// Format date and time for display
+function formatDateTime(dateString) {
+    if (!dateString) return 'Unknown';
+    
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        return 'Unknown';
+    }
+}
+
 // Format added method for display
 function formatAddedMethod(method) {
     if (!method) return 'Unknown';
@@ -1209,7 +1273,7 @@ function formatManaCost(manaCost) {
 function createEnhancedCardDetailHTML(card, filteredCards) {
     const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'LP';
     const conditionDropdown = card.id && card.id !== 'undefined' ? `
-        <select id="conditionDropdown" onchange="updateCardCondition(${card.id}, this.value)">
+        <select id="conditionDropdown" onchange="updateCardConditionWithLivePrice(${card.id}, this.value)">
             ${CONDITION_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === condition ? ' selected' : ''}>${opt.label}</option>`).join('')}
         </select>
     ` : `
@@ -1219,15 +1283,8 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
     `;
     
     const rarity = card.rarity && RARITY_OPTIONS.find(opt => opt.value === card.rarity.toLowerCase()) ? card.rarity.toLowerCase() : 'unknown';
-    const rarityDropdown = card.id && card.id !== 'undefined' ? `
-        <select id="rarityDropdown" onchange="updateCardRarity(${card.id}, this.value)">
-            ${RARITY_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === rarity ? ' selected' : ''}>${opt.label}</option>`).join('')}
-        </select>
-    ` : `
-        <select id="rarityDropdown" disabled>
-            ${RARITY_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === rarity ? ' selected' : ''}>${opt.label}</option>`).join('')}
-        </select>
-    `;
+    const rarityLabel = RARITY_OPTIONS.find(opt => opt.value === rarity)?.label || 'Unknown';
+    const rarityDisplay = `<span class="read-only-field">${rarityLabel}</span>`;
     
     const setCode = card.set_code ? card.set_code.toLowerCase() : 'unknown';
     const setDropdown = card.id && card.id !== 'undefined' ? `
@@ -1261,6 +1318,7 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
                      class="card-image-large"
                      onerror="this.src='https://via.placeholder.com/300x420/667eea/ffffff?text=Card+Image'">
                 ${card.is_example ? '<div class="example-badge">EXAMPLE</div>' : ''}
+              
             </div>
             <div class="card-details">
                 <div class="detail-row">
@@ -1277,7 +1335,7 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Rarity:</span>
-                    <span class="detail-value">${rarityDropdown}</span>
+                    <span class="detail-value">${rarityDisplay}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Mana Cost:</span>
@@ -1294,20 +1352,22 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
                 <div class="detail-row">
                     <span class="detail-label">Added:</span>
                     <span class="detail-value">
-                        ${formatDate(card.first_seen)} 
-                        <span class="added-method">(${formatAddedMethod(card.added_method)})</span>
-                        ${card.added_method === 'SCANNED' && card.scan_id ? 
-                            `<button class="view-scan-btn" onclick="viewScanImage(${card.scan_id}, '${card.name}')" title="View scanned image">
-                                👓
-                            </button>` : ''
-                        }
+                        ${formatDateTime(card.first_seen)} 
+                        <span class="added-method">(${formatAddedMethod(card.added_method)}${card.added_method === 'SCANNED' && card.scan_id ? `<button class="scan-emoji-btn" onclick="viewScanImage(${card.scan_id}, &quot;${card.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}&quot;)" title="View original scanned image" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #4fc3f7; padding: 0 2px; border-radius: 50%; vertical-align: middle; margin-left: 2px;">🔍</button>` : ''})</span>
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Last Updated:</span>
+                    <span class="detail-value">
+                        ${formatDateTime(card.last_seen)}
                     </span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Prices:</span>
-                    <div class="price-details">
-                        <span class="price-item price-usd">$${(card.price_usd || 0).toFixed(2)}</span>
-                        <span class="price-item price-eur">€${(card.price_eur || 0).toFixed(2)}</span>
+                    <div class="price-details" data-base-price-usd="${card.price_usd || 0}" data-base-price-eur="${card.price_eur || 0}">
+                        <span class="price-item price-usd" id="modalPriceUSD">$${getConditionAdjustedPrice(card.price_usd || 0, card.condition).toFixed(2)}</span>
+                        <span class="price-item price-eur" id="modalPriceEUR">€${getConditionAdjustedPrice(card.price_eur || 0, card.condition).toFixed(2)}</span>
+                        <span class="condition-note" id="modalConditionNote">${card.condition !== 'NM' ? `(${card.condition} condition)` : ''}</span>
                     </div>
                 </div>
                 ${card.oracle_text ? `
@@ -1338,6 +1398,35 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
     `;
 }
 
+// Update modal price display immediately when condition changes
+function updateModalPriceDisplay(newCondition) {
+    const priceDetails = document.querySelector('.price-details');
+    const priceUSD = document.getElementById('modalPriceUSD');
+    const priceEUR = document.getElementById('modalPriceEUR');
+    const conditionNote = document.getElementById('modalConditionNote');
+    
+    if (priceDetails && priceUSD && priceEUR && conditionNote) {
+        const basePriceUSD = parseFloat(priceDetails.dataset.basePriceUsd) || 0;
+        const basePriceEUR = parseFloat(priceDetails.dataset.basePriceEur) || 0;
+        
+        const adjustedPriceUSD = getConditionAdjustedPrice(basePriceUSD, newCondition);
+        const adjustedPriceEUR = getConditionAdjustedPrice(basePriceEUR, newCondition);
+        
+        priceUSD.textContent = `$${adjustedPriceUSD.toFixed(2)}`;
+        priceEUR.textContent = `€${adjustedPriceEUR.toFixed(2)}`;
+        conditionNote.textContent = newCondition !== 'NM' ? `(${newCondition} condition)` : '';
+    }
+}
+
+// Update card condition with live price update
+async function updateCardConditionWithLivePrice(cardId, newCondition) {
+    // Update price display immediately for instant feedback
+    updateModalPriceDisplay(newCondition);
+    
+    // Then update via API
+    await updateCardCondition(cardId, newCondition);
+}
+
 // Update card condition via API
 async function updateCardCondition(cardId, newCondition) {
     // Validate card ID
@@ -1364,31 +1453,7 @@ async function updateCardCondition(cardId, newCondition) {
     }
 }
 
-// Update card rarity via API
-async function updateCardRarity(cardId, newRarity) {
-    // Validate card ID
-    if (!cardId || cardId === 'undefined' || cardId === undefined) {
-        alert('Cannot update card: Invalid card ID');
-        console.error('Attempted to update card rarity with invalid ID:', cardId);
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/cards/${cardId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rarity: newRarity })
-        });
-        if (response.ok) {
-            await loadCards();
-        } else {
-            alert('Failed to update card rarity.');
-        }
-    } catch (error) {
-        console.error('Error updating card rarity:', error);
-        alert('Error updating card rarity.');
-    }
-}
+
 
 // Update card set and automatically update set code
 async function updateCardSet(cardId, newSetValue) {
@@ -2879,7 +2944,7 @@ function showFullScanImage(fileName, imageUrl) {
             </div>
             <div class="full-scan-body">
                 <div class="zoomable-scan-container">
-                    <img src="${imageUrl}" alt="${fileName}" class="full-scan-image">
+                    <img src="/uploads/${fileName}" alt="${fileName}" class="full-scan-image">
                 </div>
             </div>
         </div>
@@ -3042,7 +3107,7 @@ async function viewScanImage(scanId, cardName) {
         
         // Use the first image from the scan
         const imageFilename = scanData.scan.images[0].filename;
-        const imageUrl = `/${imageFilename}`;
+        const imageUrl = `/uploads/${imageFilename}`;
         
         // Show the scan image in full screen
         showFullScanImage(imageFilename, imageUrl, `Original scan for: ${cardName}`);
@@ -3309,7 +3374,7 @@ function showUnknownSetCard(index) {
                     <div class="current-set-info">
                         <p><strong>Current Set:</strong> <span class="unknown-indicator">${card.set_name || 'Unknown'}</span></p>
                         <p><strong>Set Code:</strong> <span class="unknown-indicator">${card.set_code || 'Unknown'}</span></p>
-                        <p><strong>Added:</strong> ${formatDate(card.first_seen)} (${formatAddedMethod(card.added_method)})</p>
+                        <p><strong>Added:</strong> ${formatDateTime(card.first_seen)} (${formatAddedMethod(card.added_method)})</p>
                     </div>
                     
                     <div class="set-correction-section">
@@ -4102,6 +4167,201 @@ function closeAIResponseModal() {
     if (window.currentAIResponseModal) {
         document.body.removeChild(window.currentAIResponseModal);
         window.currentAIResponseModal = null;
+    }
+}
+
+// Camera functionality
+function initializeCamera() {
+    cameraModal = document.getElementById('cameraModal');
+    cameraVideo = document.getElementById('cameraVideo');
+    cameraCanvas = document.getElementById('cameraCanvas');
+    
+    // Camera modal event listeners
+    const closeCameraBtn = document.getElementById('closeCameraBtn');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    
+    if (closeCameraBtn) {
+        closeCameraBtn.addEventListener('click', closeCameraModal);
+    }
+    if (cancelCameraBtn) {
+        cancelCameraBtn.addEventListener('click', closeCameraModal);
+    }
+    if (captureBtn) {
+        captureBtn.addEventListener('click', capturePhoto);
+    }
+    
+    // Close modal when clicking outside
+    if (cameraModal) {
+        cameraModal.addEventListener('click', (e) => {
+            if (e.target === cameraModal) {
+                closeCameraModal();
+            }
+        });
+    }
+}
+
+function handleCameraClick() {
+    // Check if Camera API is supported
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        // Use modern Camera API
+        openCameraModal();
+    } else {
+        // Fallback to file input with camera capture
+        console.log('📷 DEBUG: Using file input fallback for camera');
+        triggerCameraFileInput();
+    }
+}
+
+function triggerCameraFileInput() {
+    // Create a temporary file input for camera capture
+    const cameraFileInput = document.createElement('input');
+    cameraFileInput.type = 'file';
+    cameraFileInput.accept = 'image/*';
+    cameraFileInput.capture = 'environment';
+    cameraFileInput.style.display = 'none';
+    
+    cameraFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            console.log('📷 DEBUG: Camera file selected via fallback');
+            handleFileSelect(e);
+        }
+        // Clean up
+        document.body.removeChild(cameraFileInput);
+    });
+    
+    // Add to DOM temporarily and trigger
+    document.body.appendChild(cameraFileInput);
+    cameraFileInput.click();
+}
+
+async function openCameraModal() {
+    try {
+        console.log('📷 DEBUG: Opening camera modal');
+        
+        // Check if getUserMedia is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Camera API not supported in this browser');
+        }
+        
+        // Check permissions first
+        try {
+            const permission = await navigator.permissions.query({ name: 'camera' });
+            console.log('📷 DEBUG: Camera permission status:', permission.state);
+            
+            if (permission.state === 'denied') {
+                throw new Error('Camera permission denied. Please enable camera access in your browser settings.');
+            }
+        } catch (permError) {
+            console.log('📷 DEBUG: Permission API not available, proceeding with camera request');
+        }
+        
+        // Try with rear camera first
+        let constraints = {
+            video: {
+                facingMode: 'environment',
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            }
+        };
+        
+        try {
+            cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (rearCameraError) {
+            console.log('📷 DEBUG: Rear camera failed, trying any camera:', rearCameraError.message);
+            
+            // Fallback to any available camera
+            constraints = {
+                video: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
+            };
+            
+            cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        }
+        
+        cameraVideo.srcObject = cameraStream;
+        cameraModal.style.display = 'block';
+        
+        console.log('📷 DEBUG: Camera stream started');
+    } catch (error) {
+        console.error('📷 ERROR: Failed to access camera:', error);
+        
+        let errorMessage = 'Unable to access camera. ';
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            errorMessage += 'Please allow camera access when prompted, or check your browser settings to enable camera permissions for this site.';
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            errorMessage += 'No camera found on this device.';
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            errorMessage += 'Camera is already in use by another application.';
+        } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+            errorMessage += 'Camera does not meet the required specifications.';
+        } else if (error.name === 'NotSupportedError') {
+            errorMessage += 'Camera API not supported in this browser.';
+        } else {
+            errorMessage += error.message || 'Unknown error occurred.';
+        }
+        
+        alert(errorMessage);
+    }
+}
+
+function closeCameraModal() {
+    console.log('📷 DEBUG: Closing camera modal');
+    
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    
+    if (cameraModal) {
+        cameraModal.style.display = 'none';
+    }
+    
+    if (cameraVideo) {
+        cameraVideo.srcObject = null;
+    }
+}
+
+async function capturePhoto() {
+    if (!cameraVideo || !cameraCanvas) {
+        console.error('📷 ERROR: Camera elements not found');
+        return;
+    }
+    
+    try {
+        console.log('📷 DEBUG: Capturing photo');
+        
+        // Set canvas size to match video
+        cameraCanvas.width = cameraVideo.videoWidth;
+        cameraCanvas.height = cameraVideo.videoHeight;
+        
+        // Draw video frame to canvas
+        const ctx = cameraCanvas.getContext('2d');
+        ctx.drawImage(cameraVideo, 0, 0);
+        
+        // Convert canvas to blob
+        cameraCanvas.toBlob(async (blob) => {
+            if (blob) {
+                // Create a File object from the blob
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const file = new File([blob], `camera-capture-${timestamp}.jpg`, { type: 'image/jpeg' });
+                
+                console.log('📷 DEBUG: Photo captured, processing...');
+                
+                // Close modal first
+                closeCameraModal();
+                
+                // Process the captured image
+                await processFiles([file]);
+            }
+        }, 'image/jpeg', 0.8);
+        
+    } catch (error) {
+        console.error('📷 ERROR: Failed to capture photo:', error);
+        alert('Failed to capture photo. Please try again.');
     }
 }
 
