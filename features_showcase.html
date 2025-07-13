@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Card Scanner - Features Showcase</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 30px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 40px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            margin: -20px -20px 40px -20px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .section {
+            margin-bottom: 50px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 2em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section h3 {
+            color: #444;
+            margin: 25px 0 15px 0;
+            font-size: 1.4em;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-list {
+            list-style: none;
+            margin: 15px 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+
+        .feature-list strong {
+            color: #667eea;
+            display: inline-block;
+            min-width: 120px;
+        }
+
+        .screenshot {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin: 20px 0;
+            display: block;
+        }
+
+        .screenshot-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .screenshot-caption {
+            font-style: italic;
+            color: #666;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .color-demo {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .color-sample {
+            width: 80px;
+            height: 80px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .white { background: #f8f8f8; color: #333; }
+        .blue { background: #0066cc; }
+        .black { background: #333; }
+        .red { background: #cc0000; }
+        .green { background: #00aa00; }
+        .multicolor { background: linear-gradient(45deg, #ffd700, #ffaa00); }
+        .colorless { background: #888; }
+
+        .cta-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 15px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            margin: 10px;
+            transition: transform 0.3s ease;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .placeholder {
+            background: #f0f0f0;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            color: #666;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎴 Magic Card Scanner</h1>
+            <p>Features Showcase - Visual Guide to Your Digital Collection</p>
+        </div>
+
+        <div class="section">
+            <h2>🏠 Main Interface</h2>
+            
+            <div class="feature-card">
+                <h3>Dashboard Overview</h3>
+                <p>The main dashboard provides a clean, intuitive interface for managing your Magic card collection.</p>
+                
+                <ul class="feature-list">
+                    <li><strong>Header:</strong> Application title and navigation</li>
+                    <li><strong>Statistics Panel:</strong> Real-time collection stats</li>
+                    <li><strong>Upload Area:</strong> Drag-and-drop card scanning</li>
+                    <li><strong>Card Gallery:</strong> Visual collection display</li>
+                    <li><strong>Tools Menu:</strong> Export and utility functions</li>
+                </ul>
+            </div>
+
+            <div class="screenshot-container">
+                <img src="screenshots/main-interface/main-dashboard.png" alt="Main Dashboard" class="screenshot">
+                <div class="screenshot-caption">The main dashboard showing the Magic Card Scanner interface with statistics panel and card collection</div>
+            </div>
+
+            <div class="feature-card">
+                <h3>Statistics Dashboard</h3>
+                <p>Real-time collection statistics update automatically as you add and manage cards.</p>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">79</div>
+                        <div class="stat-label">Total Cards</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">79</div>
+                        <div class="stat-label">Total Count</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">$9,990.68</div>
+                        <div class="stat-label">Total Value</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="screenshot-container">
+                <img src="screenshots/main-interface/collection-overview.png" alt="Collection Overview" class="screenshot">
+                <div class="screenshot-caption">Collection overview showing comprehensive statistics and card organization</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📷 Card Scanning & AI Recognition</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Upload Interface</h3>
+                    <ul class="feature-list">
+                        <li><strong>Drag & Drop:</strong> Simply drag images onto the upload zone</li>
+                        <li><strong>Click to Browse:</strong> Traditional file selection</li>
+                        <li><strong>Progress Tracking:</strong> Visual upload progress</li>
+                        <li><strong>Multiple Formats:</strong> JPG, PNG, and more</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>AI Processing</h3>
+                    <ul class="feature-list">
+                        <li><strong>Multi-card Detection:</strong> Identifies multiple cards in one image</li>
+                        <li><strong>Automatic Recognition:</strong> Card names, sets, and rarities</li>
+                        <li><strong>Price Lookup:</strong> Real-time market values</li>
+                        <li><strong>Condition Assessment:</strong> Intelligent condition detection</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <strong>🤖 Powered by OpenAI Vision API</strong><br>
+                Advanced AI recognition technology provides accurate card identification and data extraction.
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎴 Card Display & Views</h2>
+            
+            <div class="feature-card">
+                <h3>Individual View Mode</h3>
+                <p>See every card in your collection displayed separately with authentic proportions.</p>
+                
+                <ul class="feature-list">
+                    <li><strong>Authentic Proportions:</strong> Proper 2.5:3.5 Magic card ratio</li>
+                    <li><strong>Color Borders:</strong> 6px borders matching card color identity</li>
+                    <li><strong>Card Information:</strong> Name, set, and price below each card</li>
+                    <li><strong>Count Display:</strong> Shows individual card counts</li>
+                </ul>
+            </div>
+
+            <div class="screenshot-container">
+                <img src="screenshots/card-views/card-gallery.png" alt="Card Gallery View" class="screenshot">
+                <div class="screenshot-caption">Individual card view showing the collection in a responsive grid layout</div>
+            </div>
+
+            <div class="feature-card">
+                <h3>Stacked View Mode</h3>
+                <p>Duplicate cards are intelligently grouped with visual stack effects.</p>
+                
+                <ul class="feature-list">
+                    <li><strong>Stack Visualization:</strong> Mini-fanned appearance for duplicates</li>
+                    <li><strong>Count Badges:</strong> "×2", "×3", etc. overlays</li>
+                    <li><strong>Combined Values:</strong> Total value of all copies</li>
+                    <li><strong>Expandable Stacks:</strong> Click to see individual cards</li>
+                </ul>
+            </div>
+
+            <div class="screenshot-container">
+                <img src="screenshots/card-views/full-collection-view.png" alt="Full Collection View" class="screenshot">
+                <div class="screenshot-caption">Full collection view demonstrating the comprehensive card management interface</div>
+            </div>
+
+            <div class="feature-card">
+                <h3>Color Identity Borders</h3>
+                <p>Cards display with authentic Magic color identity borders.</p>
+                
+                <div class="color-demo">
+                    <div class="color-sample white">White</div>
+                    <div class="color-sample blue">Blue</div>
+                    <div class="color-sample black">Black</div>
+                    <div class="color-sample red">Red</div>
+                    <div class="color-sample green">Green</div>
+                    <div class="color-sample multicolor">Multi</div>
+                    <div class="color-sample colorless">Colorless</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔍 Card Details & Management</h2>
+            
+            <div class="feature-card">
+                <h3>Card Detail Modal</h3>
+                <p>Comprehensive card information in an elegant modal interface.</p>
+                
+                <ul class="feature-list">
+                    <li><strong>High-resolution card image</strong></li>
+                    <li><strong>Complete card details</strong> (name, set, rarity, price)</li>
+                    <li><strong>Oracle text</strong> (card abilities and flavor text)</li>
+                    <li><strong>Personal notes</strong> (your custom annotations)</li>
+                    <li><strong>Condition tracking</strong> (Near Mint, Lightly Played, etc.)</li>
+                </ul>
+            </div>
+
+            <div class="screenshot-container">
+                <img src="screenshots/card-details/card-detail-modal.png" alt="Card Detail Modal" class="screenshot">
+                <div class="screenshot-caption">Card detail modal showing comprehensive card information with editing capabilities</div>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Editable Fields</h3>
+                    <ul class="feature-list">
+                        <li><strong>Condition:</strong> Dropdown with standard conditions</li>
+                        <li><strong>Set:</strong> Comprehensive set selection</li>
+                        <li><strong>Rarity:</strong> Common, Uncommon, Rare, Mythic</li>
+                        <li><strong>Notes:</strong> Personal tracking notes</li>
+                        <li><strong>Count:</strong> Number of copies owned</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>Navigation</h3>
+                    <ul class="feature-list">
+                        <li><strong>Previous/Next arrows:</strong> Browse through collection</li>
+                        <li><strong>Keyboard shortcuts:</strong> Arrow keys for navigation</li>
+                        <li><strong>Direct access:</strong> Click cards from gallery</li>
+                        <li><strong>Modal controls:</strong> Easy close and navigation</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💾 Export & Backup System</h2>
+            
+            <div class="feature-card">
+                <h3>Export Modal</h3>
+                <p>Comprehensive export options with user-friendly interface.</p>
+                
+                <ul class="feature-list">
+                    <li><strong>Format Selection:</strong> CSV (default) or Excel</li>
+                    <li><strong>File Path Selection:</strong> Browse to choose save location</li>
+                    <li><strong>Custom Filename:</strong> Choose your own filename</li>
+                    <li><strong>Overwrite Protection:</strong> Confirmation before overwriting</li>
+                </ul>
+            </div>
+
+            <div class="screenshot-container">
+                <img src="screenshots/export-backup/export-modal.png" alt="Export Modal" class="screenshot">
+                <div class="screenshot-caption">Export modal showing CSV/Excel format selection and file location options</div>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Export Progress</h3>
+                    <ul class="feature-list">
+                        <li><strong>Progress Bar:</strong> Visual completion indicator</li>
+                        <li><strong>Status Messages:</strong> "Preparing export...", "Exporting data..."</li>
+                        <li><strong>Completion Notification:</strong> Success message with file location</li>
+                        <li><strong>Error Handling:</strong> Clear error messages if issues occur</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>Backup Management</h3>
+                    <ul class="feature-list">
+                        <li><strong>Automatic Backups:</strong> Every 6 hours by default</li>
+                        <li><strong>Manual Backups:</strong> On-demand backup creation</li>
+                        <li><strong>Timestamped Files:</strong> Each backup clearly dated</li>
+                        <li><strong>Backup History:</strong> View all previous backups</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔍 Search & Filtering</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Real-time Search</h3>
+                    <ul class="feature-list">
+                        <li><strong>Card Names:</strong> Primary search target</li>
+                        <li><strong>Set Names:</strong> Find cards by set</li>
+                        <li><strong>Personal Notes:</strong> Search your annotations</li>
+                        <li><strong>Partial Matching:</strong> Find cards with incomplete names</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>View Filters</h3>
+                    <ul class="feature-list">
+                        <li><strong>Individual/Stacked:</strong> Switch view modes</li>
+                        <li><strong>Show Examples:</strong> Include/exclude example cards</li>
+                        <li><strong>Condition Filter:</strong> Filter by card condition</li>
+                        <li><strong>Set Filter:</strong> Show only specific sets</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔧 Advanced Features</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Example Card System</h3>
+                    <ul class="feature-list">
+                        <li><strong>Example Badges:</strong> Clear visual indicators</li>
+                        <li><strong>Separate Counting:</strong> Examples don't count toward stats</li>
+                        <li><strong>Reference Library:</strong> Keep examples for reference</li>
+                        <li><strong>Toggle Visibility:</strong> Show/hide examples</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>Data Safety</h3>
+                    <ul class="feature-list">
+                        <li><strong>Soft Deletion:</strong> Deleted cards marked, not removed</li>
+                        <li><strong>UUID Tracking:</strong> Unique identifiers for all cards</li>
+                        <li><strong>Audit Trail:</strong> Track all changes and operations</li>
+                        <li><strong>Recovery Options:</strong> Restore accidentally deleted cards</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🚀 Performance & Compatibility</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Optimized Performance</h3>
+                    <ul class="feature-list">
+                        <li><strong>Lazy Loading:</strong> Cards load as needed</li>
+                        <li><strong>Efficient Caching:</strong> Reduced API calls</li>
+                        <li><strong>Optimized Queries:</strong> Fast database operations</li>
+                        <li><strong>Progressive Enhancement:</strong> Core features load first</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>Cross-Platform</h3>
+                    <ul class="feature-list">
+                        <li><strong>All Browsers:</strong> Chrome, Firefox, Safari, Edge</li>
+                        <li><strong>All OS:</strong> macOS, Windows, Linux</li>
+                        <li><strong>Mobile Responsive:</strong> Works on phones and tablets</li>
+                        <li><strong>Touch Support:</strong> Touch-friendly interface</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Use Cases</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Personal Collection</h3>
+                    <ul class="feature-list">
+                        <li><strong>Inventory Tracking:</strong> Know exactly what you own</li>
+                        <li><strong>Value Monitoring:</strong> Track collection worth</li>
+                        <li><strong>Condition Management:</strong> Monitor card conditions</li>
+                        <li><strong>Organization:</strong> Keep everything organized</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>Trading & Selling</h3>
+                    <ul class="feature-list">
+                        <li><strong>Quick Lookups:</strong> Fast card identification</li>
+                        <li><strong>Value Assessment:</strong> Current market prices</li>
+                        <li><strong>Condition Tracking:</strong> Accurate condition records</li>
+                        <li><strong>Export Lists:</strong> Share collection data</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="cta-section">
+            <h2>🎉 Ready to Get Started?</h2>
+            <p>Transform your Magic card collection with the power of AI and modern web technology.</p>
+            <a href="INSTALLATION.md" class="cta-button">📥 Installation Guide</a>
+            <a href="USER_GUIDE.md" class="cta-button">📖 User Guide</a>
+            <a href="README.md" class="cta-button">🏠 Back to Main</a>
+        </div>
+    </div>
+</body>
+</html> 
