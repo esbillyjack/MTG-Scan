@@ -232,7 +232,8 @@ If you cannot identify any cards clearly, return an empty array [].
                 logger.info(f"Fallback parsing extracted {len(cards)} cards")
                 if len(cards) == 0:
                     logger.warning("Fallback parsing failed to extract any cards")
-                    logger.warning(f"Content lines analyzed: {[line.strip() for line in content.split('\\n') if line.strip()]}")
+                    newline = '\n'
+                    logger.warning(f"Content lines analyzed: {[line.strip() for line in content.split(newline) if line.strip()]}")
                 return cards
             
             logger.warning("No content in AI response")
