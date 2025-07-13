@@ -30,6 +30,9 @@ When you first open the Magic Card Scanner at `http://localhost:8000`, you'll se
 - **Card Gallery**: Where your scanned cards will appear
 - **Tools Menu**: Access to export and other utilities
 
+![Main Dashboard](screenshots/main-interface/main-dashboard.png)
+*The main Magic Card Scanner interface showing all key components*
+
 ### Initial Setup
 
 1. **Upload Your First Card**: Drag an image file or click to browse
@@ -108,6 +111,9 @@ After scanning, you'll see:
 - **Price Display**: Individual card values
 - **Full Details**: Complete information for each card
 
+![Card Gallery View](screenshots/card-views/card-gallery.png)
+*Individual view showing cards in a responsive grid layout*
+
 #### Stacked View
 - **Grouped Duplicates**: Identical cards grouped together
 - **Visual Stack Effect**: Mini-fanned appearance for stacks
@@ -174,6 +180,9 @@ Track your collection with comprehensive stats:
 
 When you click a card, a detailed modal opens showing:
 
+![Card Detail Modal](screenshots/card-details/card-detail-modal.png)
+*Card detail modal showing comprehensive information and editing options*
+
 #### Card Information
 - **High-Quality Image**: Full-size card image
 - **Complete Details**: All card attributes
@@ -229,6 +238,9 @@ Standard Magic card conditions:
 3. **Choose Format**: CSV (default) or Excel
 4. **Select Location**: Browse to choose save location
 5. **Confirm Export**: Review settings and export
+
+![Export Modal](screenshots/export-backup/export-modal.png)
+*Export modal with format selection and file location options*
 
 #### Exported Data
 Your export includes:

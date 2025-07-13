@@ -2,6 +2,9 @@
 
 An AI-powered web application that identifies Magic: The Gathering cards from photos and tracks your collection with advanced features like stacking, soft deletion, detailed card management, and local data export.
 
+![Magic Card Scanner Interface](screenshots/main-interface/main-dashboard.png)
+*The Magic Card Scanner main interface showing collection management capabilities*
+
 ## ✨ Features
 
 ### Core Functionality

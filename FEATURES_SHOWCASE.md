@@ -16,7 +16,8 @@ The main dashboard provides a clean, intuitive interface for managing your Magic
 - **Card Gallery**: Visual collection display
 - **Tools Menu**: Export and utility functions
 
-*[Screenshot placeholder: Main dashboard with empty collection]*
+![Main Dashboard](screenshots/main-interface/main-dashboard.png)
+*The main dashboard showing the Magic Card Scanner interface with statistics panel and card collection*
 
 ### Statistics Dashboard
 Real-time collection statistics update automatically as you add and manage cards.
@@ -26,7 +27,8 @@ Real-time collection statistics update automatically as you add and manage cards
 - **Total Count**: Including duplicates (e.g., "79 total")
 - **Total Value**: Collection worth (e.g., "$9,990.68")
 
-*[Screenshot placeholder: Statistics panel showing collection stats]*
+![Collection Overview](screenshots/main-interface/collection-overview.png)
+*Collection overview showing comprehensive statistics and card organization*
 
 ---
 
@@ -41,7 +43,8 @@ The drag-and-drop upload area makes scanning cards effortless.
 - **Progress Tracking**: Visual upload progress
 - **Multiple Formats**: JPG, PNG, and more
 
-*[Screenshot placeholder: Upload area with drag-and-drop interface]*
+![Upload Interface](screenshots/main-interface/main-dashboard.png)
+*Drag-and-drop upload area for easy card scanning*
 
 ### AI Processing
 Advanced AI recognition powered by OpenAI Vision API.
@@ -67,7 +70,8 @@ See every card in your collection displayed separately.
 - **Card Information**: Name, set, and price below each card
 - **Count Display**: Shows individual card counts
 
-*[Screenshot placeholder: Individual view showing grid of cards]*
+![Card Gallery View](screenshots/card-views/card-gallery.png)
+*Individual card view showing the collection in a responsive grid layout*
 
 ### Stacked View Mode
 Duplicate cards are intelligently grouped with visual stack effects.
@@ -78,7 +82,8 @@ Duplicate cards are intelligently grouped with visual stack effects.
 - **Combined Values**: Total value of all copies
 - **Expandable Stacks**: Click to see individual cards
 
-*[Screenshot placeholder: Stacked view showing grouped duplicates]*
+![Full Collection View](screenshots/card-views/full-collection-view.png)
+*Full collection view demonstrating the comprehensive card management interface*
 
 ### Color Identity Borders
 Cards display with authentic Magic color identity borders.
@@ -92,7 +97,8 @@ Cards display with authentic Magic color identity borders.
 - **Multicolor**: Gold border
 - **Colorless**: Gray border
 
-*[Screenshot placeholder: Cards showing different color borders]*
+![Card Color Borders](screenshots/card-views/card-gallery.png)
+*Cards displaying authentic Magic color identity borders*
 
 ---
 
@@ -108,7 +114,8 @@ Comprehensive card information in an elegant modal interface.
 - **Personal notes** (your custom annotations)
 - **Condition tracking** (Near Mint, Lightly Played, etc.)
 
-*[Screenshot placeholder: Card detail modal showing full information]*
+![Card Detail Modal](screenshots/card-details/card-detail-modal.png)
+*Card detail modal showing comprehensive card information with editing capabilities*
 
 ### Editable Fields
 Easily modify card information directly in the detail view.
@@ -172,7 +179,8 @@ Comprehensive export options with user-friendly interface.
 - **Custom Filename**: Choose your own filename
 - **Overwrite Protection**: Confirmation before overwriting
 
-*[Screenshot placeholder: Export modal with format and location options]*
+![Export Modal](screenshots/export-backup/export-modal.png)
+*Export modal showing CSV/Excel format selection and file location options*
 
 ### Export Progress
 Visual progress tracking during export operations.
