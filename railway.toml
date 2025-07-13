@@ -1,3 +1,4 @@
+# Railway configuration for Magic Card Scanner
 [build]
 builder = "NIXPACKS"
 
