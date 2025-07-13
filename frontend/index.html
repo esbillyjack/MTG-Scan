@@ -26,7 +26,7 @@
                         <h3>Upload Card Photos</h3>
                         <p>Drag and drop images here or click to browse</p>
                         <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
-                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                        <button class="upload-btn" id="uploadBtn">
                             <i class="fas fa-folder-open"></i> Choose Files
                         </button>
                     </div>
@@ -64,6 +64,17 @@
                 <div class="gallery-header">
                     <h2><i class="fas fa-database"></i> Your Collection</h2>
                     <div class="gallery-controls">
+                        <div class="tools-container">
+                            <button class="tools-btn" id="toolsBtn" onclick="toggleToolsMenu()">
+                                🔧
+                            </button>
+                            <div class="tools-dropdown" id="toolsDropdown">
+                                <button class="tool-item" onclick="showScanHistory()">
+                                    <i class="fas fa-history"></i> Scan History
+                                </button>
+                                <!-- More tools can be added here -->
+                            </div>
+                        </div>
                         <div class="search-container">
                             <input type="text" id="searchInput" placeholder="Search cards...">
                         </div>
@@ -80,6 +91,21 @@
             </section>
         </main>
 
+        <!-- Scanning Modal -->
+        <div class="modal scanning-modal" id="scanningModal">
+            <div class="modal-content scanning-content">
+                <div class="modal-header">
+                    <h3 id="scanningTitle">Scanning Magic Cards</h3>
+                    <button class="close-btn" onclick="closeScanningModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="scanningBody">
+                    <!-- Scanning workflow will be populated here -->
+                </div>
+            </div>
+        </div>
+
         <!-- Card Detail Modal -->
         <div class="modal" id="cardModal">
             <div class="modal-content">
@@ -91,6 +117,24 @@
                 </div>
                 <div class="modal-body" id="modalBody">
                     <!-- Card details will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Scan History Modal -->
+        <div class="modal" id="scanHistoryModal">
+            <div class="modal-content scan-history-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-history"></i> Scan History</h3>
+                    <button class="close-btn" onclick="closeScanHistoryModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="scanHistoryBody">
+                    <div class="scan-history-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading scan history...</p>
+                    </div>
                 </div>
             </div>
         </div>

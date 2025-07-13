@@ -1,9 +1,10 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Text, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Text, Boolean, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import os
 import uuid
+import json
 
 # Database setup
 DATABASE_URL = "sqlite:///./magic_cards.db"
@@ -43,6 +44,82 @@ class Card(Base):
     first_seen = Column(DateTime, default=datetime.utcnow)
     last_seen = Column(DateTime, default=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)  # When the card was soft deleted
+    
+    # New scan-related fields
+    scan_id = Column(Integer, ForeignKey('scans.id'), nullable=True)  # Which scan created this card
+    scan_result_id = Column(Integer, ForeignKey('scan_results.id'), nullable=True)  # Which scan result this came from
+    import_status = Column(String, default="ACTIVE")  # PENDING, ACCEPTED, ACTIVE
+    
+    # How the card was added to the database
+    added_method = Column(String, default="SCANNED")  # SCANNED, MANUAL, IMPORTED, BULK_IMPORT, etc.
+
+
+class Scan(Base):
+    __tablename__ = "scans"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    status = Column(String, default="PENDING")  # PENDING, PROCESSING, READY_FOR_REVIEW, COMPLETED, CANCELLED
+    total_images = Column(Integer, default=0)
+    processed_images = Column(Integer, default=0)
+    total_cards_found = Column(Integer, default=0)
+    unknown_cards_count = Column(Integer, default=0)
+    notes = Column(Text, default="")
+    
+    # Relationships
+    scan_images = relationship("ScanImage", back_populates="scan")
+    scan_results = relationship("ScanResult", back_populates="scan")
+    cards = relationship("Card", backref="scan")
+
+
+class ScanImage(Base):
+    __tablename__ = "scan_images"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    scan_id = Column(Integer, ForeignKey('scans.id'), nullable=False)
+    filename = Column(String, nullable=False)  # Generated filename
+    original_filename = Column(String, nullable=False)  # User's original filename
+    file_path = Column(String, nullable=False)  # Path to stored file
+    processed_at = Column(DateTime, nullable=True)
+    cards_found = Column(Integer, default=0)
+    processing_error = Column(Text, nullable=True)  # Store any processing errors
+    
+    # Relationships
+    scan = relationship("Scan", back_populates="scan_images")
+    scan_results = relationship("ScanResult", back_populates="scan_image")
+
+
+class ScanResult(Base):
+    __tablename__ = "scan_results"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    scan_id = Column(Integer, ForeignKey('scans.id'), nullable=False)
+    scan_image_id = Column(Integer, ForeignKey('scan_images.id'), nullable=False)
+    
+    # AI identification results
+    card_name = Column(String, nullable=False)
+    set_code = Column(String, nullable=True)
+    set_name = Column(String, nullable=True)
+    collector_number = Column(String, nullable=True)
+    confidence_score = Column(Float, default=0.0)  # 0-100 confidence score
+    
+    # User decision
+    status = Column(String, default="PENDING")  # PENDING, ACCEPTED, REJECTED
+    user_notes = Column(Text, default="")
+    
+    # Full card data from Scryfall as JSON
+    card_data = Column(Text, nullable=True)  # JSON string of full card data
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)  # When user made accept/reject decision
+    
+    # Relationships
+    scan = relationship("Scan", back_populates="scan_results")
+    scan_image = relationship("ScanImage", back_populates="scan_results")
+    card = relationship("Card", backref="scan_result")
+
 
 def init_db():
     """Initialize the database and create tables"""

@@ -517,16 +517,36 @@ body {
 .close-btn {
     background: none;
     border: none;
-    color: white;
+    color: #333;
     font-size: 1.5rem;
     cursor: pointer;
     padding: 5px;
     border-radius: 50%;
     transition: background-color 0.3s ease;
+    font-weight: bold;
 }
 
 .close-btn:hover {
-    background-color: rgba(255,255,255,0.2);
+    background-color: rgba(0,0,0,0.1);
+    color: #000;
+}
+
+/* Specific styling for image comparison modal close button */
+.image-comparison-modal .close-btn {
+    color: #666;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #ddd;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-comparison-modal .close-btn:hover {
+    background: rgba(255,255,255,1);
+    color: #333;
+    border-color: #999;
 }
 
 .modal-body {
@@ -736,6 +756,284 @@ body {
     100% { transform: rotate(360deg); }
 }
 
+/* Scan status note styling */
+.scan-status-note {
+    font-size: 0.85rem;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+/* Added method and date styling */
+.added-method {
+    font-size: 0.85rem;
+    color: #666;
+    font-style: italic;
+}
+
+.card-added {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+/* Tools dropdown styling */
+.tools-container {
+    position: relative;
+    margin-right: 15px;
+}
+
+.tools-btn {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+}
+
+.tools-btn:hover {
+    background: #e9ecef;
+    border-color: #ddd;
+    transform: translateY(-1px);
+}
+
+.tools-btn:active {
+    transform: translateY(0);
+}
+
+.tools-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    min-width: 180px;
+    display: none;
+    margin-top: 4px;
+}
+
+.tools-dropdown.show {
+    display: block;
+}
+
+.tool-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-size: 0.9rem;
+    gap: 8px;
+}
+
+.tool-item:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.tool-item:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+.tool-item:only-child {
+    border-radius: 8px;
+}
+
+.tool-item:hover {
+    background: #f8f9fa;
+}
+
+.tool-item i {
+    color: #666;
+    width: 16px;
+}
+
+/* Scan History Modal */
+.scan-history-content {
+    max-width: 900px;
+    width: 90vw;
+    max-height: 80vh;
+}
+
+.scan-history-loading {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.scan-history-loading i {
+    font-size: 2rem;
+    margin-bottom: 16px;
+    color: #007bff;
+}
+
+.scan-history-list {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.scan-item {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: #f8f9fa;
+    overflow: hidden;
+}
+
+.scan-header {
+    padding: 16px;
+    background: white;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.scan-info h4 {
+    margin: 0 0 4px 0;
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.scan-meta {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.scan-stats {
+    text-align: right;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.scan-images {
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: white;
+}
+
+.scan-thumbnail {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.scan-thumbnail:hover {
+    transform: scale(1.05);
+}
+
+.scan-cards {
+    padding: 16px;
+    background: #f8f9fa;
+}
+
+.scan-cards h5 {
+    margin: 0 0 12px 0;
+    font-size: 0.9rem;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.scan-cards-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+.scan-card-item {
+    background: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scan-card-item i {
+    color: #28a745;
+    font-size: 0.75rem;
+}
+
+.empty-scan-history {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.empty-scan-history i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    color: #ddd;
+}
+
+.empty-scan-history h3 {
+    margin: 0 0 8px 0;
+    color: #999;
+}
+
+.empty-scan-history p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* Ensure cancel button is always visible and accessible */
+.scan-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.scan-secondary-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scan-secondary-btn:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+.scan-secondary-btn:active {
+    transform: translateY(0);
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .container {
@@ -782,6 +1080,12 @@ body {
     .nav-controls {
         flex-direction: column;
         gap: 15px;
+    }
+    
+    .scan-controls {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
     }
 }
 
@@ -1870,4 +2174,761 @@ input:checked + .slider:before {
         height: 18px;
         font-size: 9px;
     }
+} 
+
+/* Scanning Modal Styles */
+.scanning-modal {
+    z-index: 2000; /* Higher than regular modal */
+}
+
+.scanning-content {
+    max-width: 900px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.scanning-phase {
+    padding: 20px;
+    text-align: center;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.scanning-progress {
+    margin: 20px 0;
+}
+
+.scanning-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.scan-image-item {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 10px;
+    position: relative;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.scan-image-item.processing {
+    border-color: #ffc107;
+    background: #fff3cd;
+}
+
+.scan-image-item.completed {
+    border-color: #28a745;
+    background: #d4edda;
+}
+
+.scan-image-item.error {
+    border-color: #dc3545;
+    background: #f8d7da;
+}
+
+.scan-image-thumbnail {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 5px;
+    margin-bottom: 8px;
+}
+
+.scan-image-full {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: #f8f9fa;
+}
+
+.scan-image-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.scan-image-status.processing {
+    color: #856404;
+}
+
+.scan-image-status.completed {
+    color: #155724;
+}
+
+.scan-image-status.error {
+    color: #721c24;
+}
+
+/* Card Review Interface */
+.scan-review-header {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.scan-bulk-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    justify-content: center;
+}
+
+.scan-results-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    margin: 20px 0;
+    background: #f8f9fa;
+}
+
+.scan-results {
+    padding: 15px;
+}
+
+.scan-result-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.scan-result-item.accepted {
+    border-color: #28a745;
+    background: #d4edda;
+}
+
+.scan-result-item.rejected {
+    border-color: #dc3545;
+    background: #f8d7da;
+}
+
+.scan-result-image-container {
+    position: relative;
+    width: 60px;
+    height: 84px;
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.scan-result-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.scan-result-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.scan-result-item.accepted .scan-result-overlay.accepted,
+.scan-result-item.rejected .scan-result-overlay.rejected {
+    opacity: 1;
+}
+
+.scan-result-overlay.accepted {
+    background: rgba(40, 167, 69, 0.9);
+}
+
+.scan-result-overlay.rejected {
+    background: rgba(220, 53, 69, 0.9);
+}
+
+.scan-result-info {
+    flex: 1;
+}
+
+.scan-result-name {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.scan-result-set {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.scan-result-confidence {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+
+.confidence-score {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.confidence-very-high {
+    background: #d4edda;
+    color: #155724;
+}
+
+.confidence-high {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.confidence-medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.confidence-low {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.confidence-very-low {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.scan-result-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.review-warning {
+    color: #dc3545;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.scan-action-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.scan-action-btn.accept {
+    background: #28a745;
+    color: white;
+}
+
+.scan-action-btn.accept:hover {
+    background: #218838;
+}
+
+.scan-action-btn.accept.active {
+    background: #155724;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+}
+
+.scan-action-btn.reject {
+    background: #dc3545;
+    color: white;
+}
+
+.scan-action-btn.reject:hover {
+    background: #c82333;
+}
+
+.scan-action-btn.reject.active {
+    background: #721c24;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+}
+
+.scan-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Scan Controls */
+.scan-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-top: 1px solid #e0e0e0;
+    background: #f8f9fa;
+    flex-wrap: wrap;
+    gap: 15px;
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+
+.scan-action-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.scan-primary-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.scan-primary-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.scan-primary-btn.disabled,
+.scan-primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #6c757d;
+    box-shadow: none;
+}
+
+.scan-primary-btn.disabled:hover,
+.scan-primary-btn:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.scan-secondary-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.scan-secondary-btn:hover {
+    background: #5a6268;
+}
+
+.scan-summary {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+/* Progress indicators */
+.scan-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e3e3e3;
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: scan-spin 1s linear infinite;
+    margin-right: 10px;
+}
+
+@keyframes scan-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.scan-phase-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 0;
+    position: relative;
+}
+
+.scan-phase-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+}
+
+.scan-phase-step::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: #e0e0e0;
+    z-index: 1;
+}
+
+.scan-phase-step:last-child::before {
+    display: none;
+}
+
+.scan-phase-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #666;
+    z-index: 2;
+    position: relative;
+}
+
+.scan-phase-step.active .scan-phase-circle {
+    background: #667eea;
+    color: white;
+}
+
+.scan-phase-step.completed .scan-phase-circle {
+    background: #28a745;
+    color: white;
+}
+
+.scan-phase-step.completed::before {
+    background: #28a745;
+}
+
+.scan-phase-label {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    text-align: center;
+    color: #666;
+}
+
+.scan-phase-step.active .scan-phase-label {
+    color: #667eea;
+    font-weight: 600;
+}
+
+/* Clickable image cursor */
+.clickable-image {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.clickable-image:hover {
+    opacity: 0.8;
+}
+
+/* Image comparison modal */
+.image-comparison-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.image-comparison-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 95vw;
+    max-height: 95vh;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.image-comparison-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+
+.image-comparison-header h3 {
+    margin: 0;
+    font-size: 1.4em;
+}
+
+.image-comparison-body {
+    display: flex;
+    padding: 20px;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.comparison-column {
+    text-align: center;
+}
+
+.left-column {
+    flex: 0 0 300px;
+}
+
+.right-column {
+    flex: 1;
+    min-width: 400px;
+}
+
+.comparison-column h4 {
+    margin: 0 0 15px 0;
+    font-size: 1.1em;
+    color: #333;
+}
+
+.official-image-container {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 10px;
+    background: #f9f9f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+}
+
+.scan-image-container {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background: #f9f9f9;
+    height: 400px;
+    overflow: auto;
+    position: relative;
+}
+
+.zoomable-image-container {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+.official-comparison-image {
+    max-width: 250px;
+    max-height: 349px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.scan-comparison-image {
+    max-width: none;
+    max-height: none;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.1s ease;
+    transform-origin: center;
+    user-select: none;
+}
+
+.no-scan-image {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 1.2em;
+}
+
+.no-scan-image i {
+    font-size: 3em;
+    margin-bottom: 10px;
+    color: #ccc;
+}
+
+.no-scan-image p {
+    margin: 0;
+}
+
+.no-official-image {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 349px;
+    color: #666;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+.no-official-image i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: #999;
+}
+
+.no-official-image p {
+    margin: 0 0 5px 0;
+    font-size: 0.9rem;
+}
+
+.no-official-image p:last-child {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+/* Responsive design for image comparison */
+@media (max-width: 768px) {
+    .image-comparison-body {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .image-comparison-content {
+        max-width: 95vw;
+        max-height: 95vh;
+    }
+}
+
+/* Zero cards found UI */
+.no-cards-found {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.no-cards-found h3 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    color: #666;
+}
+
+.no-cards-found p {
+    color: #888;
+    margin-bottom: 30px;
+    font-size: 1rem;
+}
+
+.scan-images-preview {
+    margin-top: 30px;
+}
+
+.scan-images-preview h4 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.scanned-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.scanned-image-item {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+.scanned-image-preview {
+    width: 100%;
+    height: 200px;
+    object-fit: contain;
+    background: #f8f9fa;
+}
+
+@media (max-width: 768px) {
+    .scanned-images-grid {
+        grid-template-columns: 1fr;
+        max-width: 300px;
+    }
+    
+    .scanned-image-preview {
+        height: 150px;
+    }
+}
+
+/* Full scan image modal */
+.full-scan-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 95vw;
+    max-height: 95vh;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.full-scan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+
+.full-scan-header h3 {
+    margin: 0;
+    font-size: 1.4em;
+}
+
+.full-scan-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+}
+
+.zoomable-scan-container {
+    width: 100%;
+    height: 70vh;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+}
+
+.full-scan-image {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.1s ease;
+    transform-origin: center;
+    user-select: none;
 } 

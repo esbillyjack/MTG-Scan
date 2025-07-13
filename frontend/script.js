@@ -3,6 +3,9 @@ let cards = [];
 let searchTerm = '';
 let currentCardIndex = 0;
 let viewMode = 'individual'; // 'individual' or 'stacked'
+let currentScan = null;
+let scanPollingInterval = null;
+let fileInputBusy = false; // Flag to prevent multiple file input clicks
 
 // DOM elements
 const uploadArea = document.getElementById('uploadArea');
@@ -21,19 +24,61 @@ const modalBody = document.getElementById('modalBody');
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 DEBUG: DOMContentLoaded fired, initializing application');
     setupEventListeners();
     loadCards();
     loadStats();
     addTestData(); // Add test data with real Magic cards
+    console.log('🚀 DEBUG: Application initialization complete');
 });
 
 // Setup event listeners
 function setupEventListeners() {
-    // File upload handling
-    uploadArea.addEventListener('click', () => fileInput.click());
+    console.log('🎧 DEBUG: setupEventListeners called');
+    console.log('🎧 DEBUG: fileInput element:', fileInput);
+    console.log('🎧 DEBUG: uploadArea element:', uploadArea);
+    
+    // File upload handling - separate handlers for area and button
+    const uploadBtn = document.getElementById('uploadBtn');
+    
+    // Upload button click handler
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to upload area
+            
+            // Check if file input is busy
+            if (fileInputBusy) {
+                console.log('🔘 DEBUG: File input busy, ignoring button click');
+                return;
+            }
+            
+            console.log('🔘 DEBUG: Upload button clicked, triggering file input click');
+            fileInputBusy = true;
+            fileInput.click();
+        });
+    }
+    
+    // Upload area click handler (only if not clicking the button)
+    uploadArea.addEventListener('click', (e) => {
+        // Only trigger if we didn't click the button (avoid double firing)
+        if (e.target !== uploadBtn && !uploadBtn.contains(e.target)) {
+            // Check if file input is busy
+            if (fileInputBusy) {
+                console.log('📎 DEBUG: File input busy, ignoring area click');
+                return;
+            }
+            
+            console.log('📎 DEBUG: Upload area clicked, triggering file input click');
+            fileInputBusy = true;
+            fileInput.click();
+        }
+    });
+    
     uploadArea.addEventListener('dragover', handleDragOver);
     uploadArea.addEventListener('dragleave', handleDragLeave);
     uploadArea.addEventListener('drop', handleDrop);
+    
+    console.log('🎧 DEBUG: Adding change event listener to file input');
     fileInput.addEventListener('change', handleFileSelect);
     
     // Search functionality
@@ -55,11 +100,32 @@ function setupEventListeners() {
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            const fanOverlay = document.getElementById('fanOverlay');
-            if (fanOverlay && fanOverlay.style.display === 'block') {
-                closeFanOverlay();
-            } else {
-                closeModal();
+            // Priority 1: If scanning modal is open, offer to cancel scan
+            const scanningModal = document.getElementById('scanningModal');
+            if (scanningModal && scanningModal.style.display === 'block') {
+                if (currentScan && currentScan.phase === 'processing') {
+                    // During processing, Escape cancels the scan
+                    cancelScan();
+                } else {
+                    // During other phases, Escape closes the modal
+                    closeScanningModal();
+                }
+            }
+            // Priority 2: If scan history modal is open, close it
+            else {
+                const scanHistoryModal = document.getElementById('scanHistoryModal');
+                if (scanHistoryModal && scanHistoryModal.style.display === 'flex') {
+                    closeScanHistoryModal();
+                }
+                // Priority 3: Close fan overlay if it's open
+                else {
+                    const fanOverlay = document.getElementById('fanOverlay');
+                    if (fanOverlay && fanOverlay.style.display === 'block') {
+                        closeFanOverlay();
+                    } else {
+                        closeModal();
+                    }
+                }
             }
         } else if (e.key === 'ArrowLeft') {
             navigateCard(-1);
@@ -77,6 +143,8 @@ function setupEventListeners() {
             }
         });
     }
+    
+    console.log('🎧 DEBUG: setupEventListeners completed');
 }
 
 // Drag and drop handlers
@@ -93,75 +161,147 @@ function handleDragLeave(e) {
 function handleDrop(e) {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
+    
+    // Check if file input is busy
+    if (fileInputBusy) {
+        console.log('🗂️ DEBUG: File input busy, ignoring drop');
+        return;
+    }
+    
     const files = e.dataTransfer.files;
+    fileInputBusy = true;
     processFiles(files);
 }
 
 function handleFileSelect(e) {
+    console.log('🔍 DEBUG: handleFileSelect called');
+    console.log('🔍 DEBUG: Event target:', e.target);
+    console.log('🔍 DEBUG: Event type:', e.type);
+    console.log('🔍 DEBUG: Files selected:', e.target.files.length);
+    
     const files = e.target.files;
-    processFiles(files);
-}
-
-// Process uploaded files
-async function processFiles(files) {
-    if (files.length === 0) return;
     
-    showLoading(true);
-    showUploadProgress();
-    
-    try {
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            
-            if (!file.type.startsWith('image/')) {
-                alert('Please upload only image files.');
-                continue;
-            }
-            
-            // Update progress
-            const progress = ((i + 1) / files.length) * 100;
-            updateProgress(progress, `Processing ${file.name}...`);
-            
-            // Upload and process the file
-            const result = await uploadAndProcess(file);
-            
-            if (result.success) {
-                displayResults(result.results);
-            } else {
-                alert(`Error processing ${file.name}: ${result.error}`);
-            }
-        }
-        
-        // Refresh the database view
-        await loadCards();
-        await loadStats();
-        
-    } catch (error) {
-        console.error('Error processing files:', error);
-        alert('Error processing files. Please try again.');
-    } finally {
-        showLoading(false);
-        hideUploadProgress();
+    // Only process if files were actually selected (not cancelled)
+    if (files && files.length > 0) {
+        console.log('🔍 DEBUG: Processing files...', Array.from(files).map(f => f.name));
+        processFiles(files);
+    } else {
+        console.log('🔍 DEBUG: No files selected (user cancelled or no files), ignoring');
+        // Reset the file input to ensure clean state
+        resetFileInput();
+        // Reset busy flag since user cancelled
+        fileInputBusy = false;
     }
 }
 
-// Upload and process a single file
-async function uploadAndProcess(file) {
-    const formData = new FormData();
-    formData.append('file', file);
+// Reset file input to allow selecting the same files again
+function resetFileInput() {
+    console.log('🔄 DEBUG: resetFileInput called');
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) {
+        console.log('🔄 DEBUG: Resetting file input value');
+        // Use a small delay to ensure the file input is properly reset
+        setTimeout(() => {
+            fileInput.value = '';
+            fileInputBusy = false; // Reset busy flag
+            console.log('🔄 DEBUG: File input reset complete');
+        }, 100);
+    } else {
+        console.log('🔄 DEBUG: File input not found!');
+        fileInputBusy = false; // Reset busy flag even if input not found
+    }
+}
+
+// Process uploaded files using new scan workflow
+async function processFiles(files) {
+    console.log('📁 DEBUG: processFiles called with', files.length, 'files');
+    
+    if (files.length === 0) {
+        console.log('📁 DEBUG: No files to process, returning early');
+        return;
+    }
+    
+    // Prevent multiple uploads if one is already in progress
+    if (currentScan && currentScan.phase !== 'complete') {
+        console.log('📁 DEBUG: Scan already in progress, ignoring new upload');
+        console.log('📁 DEBUG: Current scan state:', currentScan);
+        return;
+    }
+    
+    console.log('📁 DEBUG: Starting file processing...');
+    
+    // Filter image files
+    const imageFiles = Array.from(files).filter(file => 
+        file.type.startsWith('image/')
+    );
+    
+    console.log('📁 DEBUG: Filtered to', imageFiles.length, 'image files');
+    
+    if (imageFiles.length === 0) {
+        console.log('📁 DEBUG: No image files found, showing alert');
+        alert('Please upload only image files.');
+        return;
+    }
     
     try {
-        const response = await fetch('/upload', {
+        console.log('📁 DEBUG: Starting uploadAndScan...');
+        // Start the new scan workflow
+        const scanResult = await uploadAndScan(imageFiles);
+        
+        if (scanResult.success) {
+            console.log('📁 DEBUG: Scan created successfully:', scanResult);
+            // Reset file input after successful scan creation
+            resetFileInput();
+            // Open scanning modal and start the workflow (non-blocking)
+            await showScanningModal(scanResult.scan_id, imageFiles);
+        } else {
+            console.log('📁 DEBUG: Scan creation failed:', scanResult.error);
+            alert(`Error starting scan: ${scanResult.error}`);
+            resetFileInput();
+        }
+        
+    } catch (error) {
+        console.error('📁 DEBUG: Error in processFiles:', error);
+        alert('Error starting scan. Please try again.');
+        resetFileInput();
+    }
+}
+
+// Upload files and create scan session
+async function uploadAndScan(files) {
+    const formData = new FormData();
+    
+    // Add all files to the form data
+    files.forEach(file => {
+        formData.append('files', file);
+    });
+    
+    try {
+        const response = await fetch('/upload/scan', {
             method: 'POST',
             body: formData
         });
         
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error);
+            let errorMessage = 'Failed to upload files';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                errorMessage = errorText || errorMessage;
+            }
+            throw new Error(errorMessage);
         }
         
-        return await response.json();
+        const result = await response.json();
+        
+        // Ensure we have a valid scan_id
+        if (!result.scan_id) {
+            throw new Error('Server did not return a valid scan ID');
+        }
+        
+        return { success: true, scan_id: result.scan_id, ...result };
     } catch (error) {
         console.error('Upload error:', error);
         return { success: false, error: error.message };
@@ -377,6 +517,7 @@ function createSpreadCard(cardData, parentCard, index) {
             <div class="card-name">${parentCard.name}</div>
             <div class="card-condition">Condition: ${cardData.condition || 'Unknown'}</div>
             <div class="card-count">Count: ${cardData.count || 1}</div>
+            <div class="card-added">Added: ${formatDate(cardData.first_seen)} (${formatAddedMethod(cardData.added_method)})</div>
         </div>
     `;
     
@@ -497,18 +638,10 @@ async function loadStats() {
         const response = await fetch('/stats');
         const stats = await response.json();
         
-        // Update stats based on current view mode
-        if (viewMode === 'stacked') {
-            // For stacked view, show stack-related stats
-            document.getElementById('totalCards').textContent = stats.owned_unique_cards || stats.total_unique_cards;
-            document.getElementById('totalCount').textContent = stats.owned_card_count || stats.total_card_count;
-        } else {
-            // For individual view, show individual card stats
-            document.getElementById('totalCards').textContent = stats.owned_unique_cards || stats.total_unique_cards;
-            document.getElementById('totalCount').textContent = stats.owned_card_count || stats.total_card_count;
-        }
-        
-        document.getElementById('totalValue').textContent = `$${(stats.owned_value_usd || stats.total_value_usd).toFixed(2)}`;
+        // Always show total stats (including examples) to give accurate count
+        document.getElementById('totalCards').textContent = stats.total_unique_cards;
+        document.getElementById('totalCount').textContent = stats.total_card_count;
+        document.getElementById('totalValue').textContent = `$${stats.total_value_usd.toFixed(2)}`;
     } catch (error) {
         console.error('Error loading stats:', error);
     }
@@ -776,6 +909,37 @@ const SET_OPTIONS = [
     { value: 'vma', label: 'Vintage Masters', code: 'VMA' }
 ];
 
+// Format date for display
+function formatDate(dateString) {
+    if (!dateString) return 'Unknown';
+    
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } catch (error) {
+        return 'Unknown';
+    }
+}
+
+// Format added method for display
+function formatAddedMethod(method) {
+    if (!method) return 'Unknown';
+    
+    const methodMap = {
+        'SCANNED': 'Scanned',
+        'MANUAL': 'Manual Entry',
+        'IMPORTED': 'Imported',
+        'BULK_IMPORT': 'Bulk Import',
+        'LEGACY': 'Legacy Data'
+    };
+    
+    return methodMap[method] || method;
+}
+
 // Convert mana cost string to HTML with mana symbols
 function formatManaCost(manaCost) {
     if (!manaCost || manaCost === '' || manaCost === 'None') {
@@ -860,22 +1024,34 @@ function formatManaCost(manaCost) {
 // Create enhanced card detail HTML with navigation
 function createEnhancedCardDetailHTML(card, index, total) {
     const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'LP';
-    const conditionDropdown = `
+    const conditionDropdown = card.id && card.id !== 'undefined' ? `
         <select id="conditionDropdown" onchange="updateCardCondition(${card.id}, this.value)">
+            ${CONDITION_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === condition ? ' selected' : ''}>${opt.label}</option>`).join('')}
+        </select>
+    ` : `
+        <select id="conditionDropdown" disabled>
             ${CONDITION_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === condition ? ' selected' : ''}>${opt.label}</option>`).join('')}
         </select>
     `;
     
     const rarity = card.rarity && RARITY_OPTIONS.find(opt => opt.value === card.rarity.toLowerCase()) ? card.rarity.toLowerCase() : 'unknown';
-    const rarityDropdown = `
+    const rarityDropdown = card.id && card.id !== 'undefined' ? `
         <select id="rarityDropdown" onchange="updateCardRarity(${card.id}, this.value)">
+            ${RARITY_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === rarity ? ' selected' : ''}>${opt.label}</option>`).join('')}
+        </select>
+    ` : `
+        <select id="rarityDropdown" disabled>
             ${RARITY_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === rarity ? ' selected' : ''}>${opt.label}</option>`).join('')}
         </select>
     `;
     
     const setCode = card.set_code ? card.set_code.toLowerCase() : 'unknown';
-    const setDropdown = `
+    const setDropdown = card.id && card.id !== 'undefined' ? `
         <select id="setDropdown" onchange="updateCardSet(${card.id}, this.value)">
+            ${SET_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === setCode ? ' selected' : ''}>${opt.label}</option>`).join('')}
+        </select>
+    ` : `
+        <select id="setDropdown" disabled>
             ${SET_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === setCode ? ' selected' : ''}>${opt.label}</option>`).join('')}
         </select>
     `;
@@ -915,6 +1091,13 @@ function createEnhancedCardDetailHTML(card, index, total) {
                     <span class="detail-value">${conditionDropdown}</span>
                 </div>
                 <div class="detail-row">
+                    <span class="detail-label">Added:</span>
+                    <span class="detail-value">
+                        ${formatDate(card.first_seen)} 
+                        <span class="added-method">(${formatAddedMethod(card.added_method)})</span>
+                    </span>
+                </div>
+                <div class="detail-row">
                     <span class="detail-label">Prices:</span>
                     <div class="price-details">
                         <span class="price-item price-usd">$${(card.price_usd || 0).toFixed(2)}</span>
@@ -928,12 +1111,21 @@ function createEnhancedCardDetailHTML(card, index, total) {
                 </div>
                 ` : ''}
                 <div class="card-actions">
-                    <button class="action-btn" onclick="editCard(${card.id})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="action-btn delete-btn" onclick="deleteCard(${card.id})">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
+                    ${card.id && card.id !== 'undefined' ? `
+                        <button class="action-btn" onclick="editCard(${card.id})">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="action-btn delete-btn" onclick="deleteCard(${card.id})">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    ` : `
+                        <button class="action-btn disabled" disabled>
+                            <i class="fas fa-edit"></i> Edit (No ID)
+                        </button>
+                        <button class="action-btn delete-btn disabled" disabled>
+                            <i class="fas fa-trash"></i> Delete (No ID)
+                        </button>
+                    `}
                 </div>
             </div>
         </div>
@@ -951,6 +1143,13 @@ function createEnhancedCardDetailHTML(card, index, total) {
 
 // Update card condition via API
 async function updateCardCondition(cardId, newCondition) {
+    // Validate card ID
+    if (!cardId || cardId === 'undefined' || cardId === undefined) {
+        alert('Cannot update card: Invalid card ID');
+        console.error('Attempted to update card condition with invalid ID:', cardId);
+        return;
+    }
+    
     try {
         const response = await fetch(`/cards/${cardId}`, {
             method: 'PUT',
@@ -963,12 +1162,20 @@ async function updateCardCondition(cardId, newCondition) {
             alert('Failed to update card condition.');
         }
     } catch (error) {
+        console.error('Error updating card condition:', error);
         alert('Error updating card condition.');
     }
 }
 
 // Update card rarity via API
 async function updateCardRarity(cardId, newRarity) {
+    // Validate card ID
+    if (!cardId || cardId === 'undefined' || cardId === undefined) {
+        alert('Cannot update card: Invalid card ID');
+        console.error('Attempted to update card rarity with invalid ID:', cardId);
+        return;
+    }
+    
     try {
         const response = await fetch(`/cards/${cardId}`, {
             method: 'PUT',
@@ -981,12 +1188,20 @@ async function updateCardRarity(cardId, newRarity) {
             alert('Failed to update card rarity.');
         }
     } catch (error) {
+        console.error('Error updating card rarity:', error);
         alert('Error updating card rarity.');
     }
 }
 
 // Update card set and automatically update set code
 async function updateCardSet(cardId, newSetValue) {
+    // Validate card ID
+    if (!cardId || cardId === 'undefined' || cardId === undefined) {
+        alert('Cannot update card: Invalid card ID');
+        console.error('Attempted to update card set with invalid ID:', cardId);
+        return;
+    }
+    
     try {
         const selectedSet = SET_OPTIONS.find(opt => opt.value === newSetValue);
         const setCode = selectedSet ? selectedSet.code : 'UNK';
@@ -1012,18 +1227,33 @@ async function updateCardSet(cardId, newSetValue) {
             alert('Failed to update card set.');
         }
     } catch (error) {
+        console.error('Error updating card set:', error);
         alert('Error updating card set.');
     }
 }
 
 // Edit card details
 async function editCard(cardId) {
+    // Validate card ID
+    if (!cardId || cardId === 'undefined' || cardId === undefined) {
+        alert('Cannot edit card: Invalid card ID');
+        console.error('Attempted to edit card with invalid ID:', cardId);
+        return;
+    }
+    
     // This would open an edit modal - for now, just show an alert
     alert('Edit functionality coming soon!');
 }
 
 // Delete card
 async function deleteCard(cardId) {
+    // Validate card ID
+    if (!cardId || cardId === 'undefined' || cardId === undefined) {
+        alert('Cannot delete card: Invalid card ID');
+        console.error('Attempted to delete card with invalid ID:', cardId);
+        return;
+    }
+    
     if (!confirm('Are you sure you want to delete this card?')) {
         return;
     }
@@ -1038,11 +1268,18 @@ async function deleteCard(cardId) {
             await loadStats();
             closeModal();
         } else {
-            alert('Error deleting card');
+            let errorMessage = 'Error deleting card';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorData.error || errorMessage;
+            } catch (e) {
+                // Use default error message if parsing fails
+            }
+            alert(errorMessage);
         }
     } catch (error) {
         console.error('Error deleting card:', error);
-        alert('Error deleting card');
+        alert('Error deleting card: ' + error.message);
     }
 }
 
@@ -1068,5 +1305,1354 @@ style.textContent = `
         font-style: italic;
         white-space: pre-wrap;
     }
+    .action-btn.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: #e9ecef;
+        color: #6c757d;
+    }
+    .action-btn.disabled:hover {
+        background-color: #e9ecef;
+        transform: none;
+    }
+    select:disabled {
+        background-color: #e9ecef;
+        color: #6c757d;
+        cursor: not-allowed;
+    }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
+
+// ===== SCANNING MODAL FUNCTIONALITY =====
+
+// Global scanning variables
+// Show scanning modal and start workflow
+async function showScanningModal(scanId, uploadedFiles) {
+    currentScan = {
+        id: scanId,
+        files: uploadedFiles,
+        results: [],
+        phase: 'processing'
+    };
+    
+    const modal = document.getElementById('scanningModal');
+    const title = document.getElementById('scanningTitle');
+    const body = document.getElementById('scanningBody');
+    
+    title.textContent = 'Scanning Magic Cards';
+    modal.style.display = 'block';
+    
+    // Show processing phase
+    showProcessingPhase();
+    
+    // Add small delay to ensure upload has completed
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Start processing the scan with retry logic
+    try {
+        await startScanProcessingWithRetry(scanId);
+        // Start polling for updates
+        startScanPolling(scanId);
+    } catch (error) {
+        console.error('Error starting scan processing:', error);
+        showScanError('Failed to start processing. Please try again.');
+    }
+}
+
+// Show processing phase
+function showProcessingPhase() {
+    const body = document.getElementById('scanningBody');
+    
+    body.innerHTML = `
+        <div class="scanning-phase">
+            <div class="scan-phase-indicator">
+                <div class="scan-phase-step completed">
+                    <div class="scan-phase-circle">1</div>
+                    <div class="scan-phase-label">Upload</div>
+                </div>
+                <div class="scan-phase-step active">
+                    <div class="scan-phase-circle">2</div>
+                    <div class="scan-phase-label">Processing</div>
+                </div>
+                <div class="scan-phase-step">
+                    <div class="scan-phase-circle">3</div>
+                    <div class="scan-phase-label">Review</div>
+                </div>
+                <div class="scan-phase-step">
+                    <div class="scan-phase-circle">4</div>
+                    <div class="scan-phase-label">Complete</div>
+                </div>
+            </div>
+            
+            <h3>
+                <span class="scan-spinner"></span>
+                Processing Images...
+            </h3>
+            <p>AI is identifying Magic cards in your uploaded images.</p>
+            
+            <div class="scanning-images" id="scanningImages">
+                ${currentScan.files.map((file, index) => `
+                    <div class="scan-image-item processing" id="scanImage${index}">
+                        <img src="${URL.createObjectURL(file)}" alt="${file.name}" class="scan-image-full">
+                        <div class="scan-image-status processing">Processing...</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        <div class="scan-controls">
+            <div class="scan-summary">
+                Processing ${currentScan.files.length} image${currentScan.files.length > 1 ? 's' : ''}...
+                <div class="scan-status-note">You can cancel at any time</div>
+            </div>
+            <button class="scan-secondary-btn" onclick="cancelScan()" id="cancelScanBtn">
+                <i class="fas fa-times"></i> Cancel Scan
+            </button>
+        </div>
+    `;
+}
+
+// Start scan processing with retry logic
+async function startScanProcessingWithRetry(scanId, maxRetries = 3) {
+    console.log(`Starting scan processing for scan ID: ${scanId}`);
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`Processing attempt ${attempt}/${maxRetries}`);
+            const response = await fetch(`/scan/${scanId}/process`, {
+                method: 'POST'
+            });
+            
+            if (!response.ok) {
+                let errorMessage = 'Failed to start processing';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.detail || errorData.error || errorMessage;
+                } catch (e) {
+                    const errorText = await response.text();
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                console.error(`Processing attempt ${attempt} failed:`, response.status, errorMessage);
+                
+                // If it's a 400 error (scan not ready), retry after delay
+                if (response.status === 400 && attempt < maxRetries) {
+                    console.log(`Scan not ready, retrying in ${attempt * 500}ms (attempt ${attempt}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, attempt * 500));
+                    continue;
+                }
+                
+                throw new Error(errorMessage);
+            }
+            
+            const result = await response.json();
+            console.log(`Processing started successfully:`, result);
+            return result;
+        } catch (error) {
+            console.error(`Processing attempt ${attempt} error:`, error);
+            if (attempt === maxRetries) {
+                console.error('Error starting scan processing after retries:', error);
+                throw error;
+            }
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, attempt * 500));
+        }
+    }
+}
+
+// Start scan processing
+async function startScanProcessing(scanId) {
+    try {
+        const response = await fetch(`/scan/${scanId}/process`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            let errorMessage = 'Failed to start processing';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                errorMessage = errorText || errorMessage;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error starting scan processing:', error);
+        throw error;
+    }
+}
+
+// Start polling for scan status
+function startScanPolling(scanId) {
+    // Clear any existing polling
+    if (scanPollingInterval) {
+        clearInterval(scanPollingInterval);
+    }
+    
+    scanPollingInterval = setInterval(async () => {
+        try {
+            await updateScanStatus(scanId);
+        } catch (error) {
+            console.error('Error polling scan status:', error);
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+// Update scan status
+async function updateScanStatus(scanId) {
+    try {
+        const response = await fetch(`/scan/${scanId}/status`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to get scan status');
+        }
+        
+        const status = await response.json();
+        
+        // Update UI based on status
+        if (status.status === 'READY_FOR_REVIEW') {
+            clearInterval(scanPollingInterval);
+            await showReviewPhase(scanId);
+        } else if (status.status === 'FAILED') {
+            clearInterval(scanPollingInterval);
+            showScanError('Scan failed. Please try again.');
+        } else if (status.status === 'COMPLETED') {
+            clearInterval(scanPollingInterval);
+            showScanError('Scan was completed by another process.');
+        }
+        
+        // Update processing progress if still processing
+        updateProcessingProgress(status);
+        
+    } catch (error) {
+        console.error('Error updating scan status:', error);
+    }
+}
+
+// Update processing progress
+function updateProcessingProgress(status) {
+    if (status.processed_images > 0) {
+        // Mark processed images as completed
+        for (let i = 0; i < status.processed_images; i++) {
+            const imageElement = document.getElementById(`scanImage${i}`);
+            if (imageElement) {
+                imageElement.className = 'scan-image-item completed';
+                imageElement.querySelector('.scan-image-status').textContent = 'Completed';
+                imageElement.querySelector('.scan-image-status').className = 'scan-image-status completed';
+            }
+        }
+    }
+}
+
+// Show review phase
+async function showReviewPhase(scanId) {
+    try {
+        // Get scan results
+        const response = await fetch(`/scan/${scanId}/results`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to get scan results');
+        }
+        
+        const resultsData = await response.json();
+        currentScan.results = resultsData.results;
+        currentScan.phase = 'review';
+        
+        // Update modal UI
+        showReviewInterface(resultsData.results);
+        
+    } catch (error) {
+        console.error('Error showing review phase:', error);
+        showScanError('Failed to load scan results.');
+    }
+}
+
+// Show review interface
+function showReviewInterface(results) {
+    const body = document.getElementById('scanningBody');
+    const title = document.getElementById('scanningTitle');
+    
+    title.textContent = 'Review Identified Cards';
+    
+    // Handle case when no cards are found
+    if (results.length === 0) {
+        body.innerHTML = `
+            <div class="scanning-phase">
+                <div class="scan-phase-indicator">
+                    <div class="scan-phase-step completed">
+                        <div class="scan-phase-circle">1</div>
+                        <div class="scan-phase-label">Upload</div>
+                    </div>
+                    <div class="scan-phase-step completed">
+                        <div class="scan-phase-circle">2</div>
+                        <div class="scan-phase-label">Processing</div>
+                    </div>
+                    <div class="scan-phase-step active">
+                        <div class="scan-phase-circle">3</div>
+                        <div class="scan-phase-label">Review</div>
+                    </div>
+                    <div class="scan-phase-step">
+                        <div class="scan-phase-circle">4</div>
+                        <div class="scan-phase-label">Complete</div>
+                    </div>
+                </div>
+                
+                <div class="no-cards-found">
+                    <h3>No Cards Found</h3>
+                    <p>The AI couldn't identify any Magic cards in your uploaded images.</p>
+                    
+                    <div class="scan-images-preview">
+                        <h4>Scanned Images:</h4>
+                        <div class="scanned-images-grid">
+                            ${currentScan.files.map((file, index) => `
+                                <div class="scanned-image-item">
+                                    <img src="${URL.createObjectURL(file)}" alt="Scanned image ${index + 1}" 
+                                         class="scanned-image-preview clickable-image"
+                                         onclick="showFullScanImage('${file.name}', '${URL.createObjectURL(file)}')">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="scan-controls">
+                <div class="scan-summary">
+                    No cards found in ${currentScan.files.length} image${currentScan.files.length > 1 ? 's' : ''}
+                </div>
+                <div class="scan-action-buttons">
+                    <button class="scan-secondary-btn" onclick="cancelScan()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button class="scan-primary-btn" onclick="finishScan()">
+                        <i class="fas fa-arrow-right"></i> Continue
+                    </button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Normal review interface for when cards are found
+    body.innerHTML = `
+        <div class="scanning-phase">
+            <div class="scan-phase-indicator">
+                <div class="scan-phase-step completed">
+                    <div class="scan-phase-circle">1</div>
+                    <div class="scan-phase-label">Upload</div>
+                </div>
+                <div class="scan-phase-step completed">
+                    <div class="scan-phase-circle">2</div>
+                    <div class="scan-phase-label">Processing</div>
+                </div>
+                <div class="scan-phase-step active">
+                    <div class="scan-phase-circle">3</div>
+                    <div class="scan-phase-label">Review</div>
+                </div>
+                <div class="scan-phase-step">
+                    <div class="scan-phase-circle">4</div>
+                    <div class="scan-phase-label">Complete</div>
+                </div>
+            </div>
+            
+            <div class="scan-review-header">
+                <h3>Review Identified Cards (${results.length})</h3>
+                <p>Accept or reject each identified card before adding to your collection.</p>
+                
+                <div class="scan-bulk-actions">
+                    <button class="scan-secondary-btn" onclick="acceptAllResults()">
+                        <i class="fas fa-check-circle"></i> Accept All
+                    </button>
+                    <button class="scan-secondary-btn" onclick="rejectAllResults()">
+                        <i class="fas fa-times-circle"></i> Reject All
+                    </button>
+                </div>
+            </div>
+            
+            <div class="scan-results-container">
+                <div class="scan-results" id="scanResults">
+                    ${results.map(result => createScanResultItem(result)).join('')}
+                </div>
+            </div>
+        </div>
+        
+        <div class="scan-controls">
+            <div class="scan-summary">
+                ${results.filter(r => r.status === 'ACCEPTED').length} accepted, 
+                ${results.filter(r => r.status === 'REJECTED').length} rejected of ${results.length} cards
+            </div>
+            <div class="scan-action-buttons">
+                <button class="scan-secondary-btn" onclick="cancelScan()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="scan-primary-btn" onclick="commitAcceptedCards()" id="commitButton">
+                    <i class="fas fa-plus"></i> Add Accepted to Collection
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Update the commit button state
+    updateCommitButtonState();
+}
+
+// Create scan result item HTML
+function createScanResultItem(result) {
+    const confidenceClass = getConfidenceClass(result.confidence_score);
+    const isAccepted = result.status === 'ACCEPTED';
+    const isRejected = result.status === 'REJECTED';
+    
+    // Extract official image URL from card data
+    let officialImageUrl = null;
+    let imageUrl = 'https://via.placeholder.com/60x84/667eea/ffffff?text=No+Image';
+    
+    // Try to get official card image from card data with better parsing
+    if (result.card_data) {
+        // Handle direct image_url property
+        if (result.card_data.image_url) {
+            officialImageUrl = result.card_data.image_url;
+            imageUrl = result.card_data.image_url;
+        }
+        // Handle Scryfall image_uris format
+        else if (result.card_data.image_uris) {
+            if (result.card_data.image_uris.normal) {
+                officialImageUrl = result.card_data.image_uris.normal;
+                imageUrl = result.card_data.image_uris.normal;
+            } else if (result.card_data.image_uris.large) {
+                officialImageUrl = result.card_data.image_uris.large;
+                imageUrl = result.card_data.image_uris.large;
+            } else if (result.card_data.image_uris.small) {
+                officialImageUrl = result.card_data.image_uris.small;
+                imageUrl = result.card_data.image_uris.small;
+            }
+        }
+    }
+    
+    // If no official image found, use scan image for display and placeholder for comparison
+    if (!officialImageUrl) {
+        if (result.image_filename) {
+            imageUrl = `/uploads/${result.image_filename}`;
+        }
+        officialImageUrl = 'https://via.placeholder.com/250x349/667eea/ffffff?text=No+Official+Image+Available';
+    }
+    
+    // Create clickable image with comparison functionality
+    const imageClickHandler = `showImageComparison('${result.card_name}', '${officialImageUrl}', '${result.image_filename ? `/uploads/${result.image_filename}` : ''}')`;
+    
+    return `
+        <div class="scan-result-item ${isAccepted ? 'accepted' : ''} ${isRejected ? 'rejected' : ''}" data-result-id="${result.id}">
+            <div class="scan-result-image-container">
+                <img src="${imageUrl}" alt="${result.card_name}" class="scan-result-image clickable-image" 
+                     onclick="${imageClickHandler}"
+                     onerror="this.src='https://via.placeholder.com/60x84/667eea/ffffff?text=No+Image'">
+                ${isAccepted ? '<div class="scan-result-overlay accepted"><i class="fas fa-check"></i></div>' : ''}
+                ${isRejected ? '<div class="scan-result-overlay rejected"><i class="fas fa-times"></i></div>' : ''}
+            </div>
+            <div class="scan-result-info">
+                <div class="scan-result-name">${result.card_name}</div>
+                <div class="scan-result-set">${result.set_name || 'Unknown Set'}</div>
+                <div class="scan-result-confidence">
+                    <span class="confidence-score ${confidenceClass}">
+                        ${Math.round(result.confidence_score)}% confidence
+                    </span>
+                    ${result.requires_review ? '<span class="review-warning">⚠ Needs review</span>' : ''}
+                </div>
+            </div>
+            <div class="scan-result-actions">
+                <button class="scan-action-btn accept ${isAccepted ? 'active' : ''}" 
+                        onclick="acceptResult(${result.id})" 
+                        data-result-id="${result.id}">
+                    <i class="fas fa-check"></i> ${isAccepted ? 'Accepted' : 'Accept'}
+                </button>
+                <button class="scan-action-btn reject ${isRejected ? 'active' : ''}" 
+                        onclick="rejectResult(${result.id})" 
+                        data-result-id="${result.id}">
+                    <i class="fas fa-times"></i> ${isRejected ? 'Rejected' : 'Reject'}
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Get confidence class for styling
+function getConfidenceClass(score) {
+    if (score >= 90) return 'confidence-very-high';
+    if (score >= 70) return 'confidence-high';
+    if (score >= 50) return 'confidence-medium';
+    if (score >= 30) return 'confidence-low';
+    return 'confidence-very-low';
+}
+
+// Accept a specific result
+async function acceptResult(resultId) {
+    try {
+        await updateResultStatus(resultId, 'accept');
+        updateResultUI(resultId, 'accepted');
+    } catch (error) {
+        console.error('Error accepting result:', error);
+    }
+}
+
+// Reject a specific result
+async function rejectResult(resultId) {
+    try {
+        await updateResultStatus(resultId, 'reject');
+        updateResultUI(resultId, 'rejected');
+    } catch (error) {
+        console.error('Error rejecting result:', error);
+    }
+}
+
+// Update result status via API
+async function updateResultStatus(resultId, action) {
+    const endpoint = action === 'accept' ? 'accept' : 'reject';
+    
+    const response = await fetch(`/scan/${currentScan.id}/${endpoint}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            result_ids: [resultId]
+        })
+    });
+    
+    if (!response.ok) {
+        throw new Error(`Failed to ${action} result`);
+    }
+}
+
+// Update result UI
+function updateResultUI(resultId, status) {
+    const resultElement = document.querySelector(`[data-result-id="${resultId}"]`);
+    if (resultElement) {
+        // Update main container classes
+        resultElement.className = `scan-result-item ${status}`;
+        
+        // Update image overlay
+        const imageContainer = resultElement.querySelector('.scan-result-image-container');
+        const existingOverlay = imageContainer.querySelector('.scan-result-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+        
+        if (status === 'accepted') {
+            imageContainer.insertAdjacentHTML('beforeend', '<div class="scan-result-overlay accepted"><i class="fas fa-check"></i></div>');
+        } else if (status === 'rejected') {
+            imageContainer.insertAdjacentHTML('beforeend', '<div class="scan-result-overlay rejected"><i class="fas fa-times"></i></div>');
+        }
+        
+        // Update buttons
+        const acceptBtn = resultElement.querySelector('.accept');
+        const rejectBtn = resultElement.querySelector('.reject');
+        
+        if (status === 'accepted') {
+            acceptBtn.innerHTML = '<i class="fas fa-check"></i> Accepted';
+            acceptBtn.className = 'scan-action-btn accept active';
+            rejectBtn.innerHTML = '<i class="fas fa-times"></i> Reject';
+            rejectBtn.className = 'scan-action-btn reject';
+        } else if (status === 'rejected') {
+            rejectBtn.innerHTML = '<i class="fas fa-times"></i> Rejected';
+            rejectBtn.className = 'scan-action-btn reject active';
+            acceptBtn.innerHTML = '<i class="fas fa-check"></i> Accept';
+            acceptBtn.className = 'scan-action-btn accept';
+        } else {
+            // Reset to pending state
+            acceptBtn.innerHTML = '<i class="fas fa-check"></i> Accept';
+            acceptBtn.className = 'scan-action-btn accept';
+            rejectBtn.innerHTML = '<i class="fas fa-times"></i> Reject';
+            rejectBtn.className = 'scan-action-btn reject';
+        }
+        
+        // Update the scan result status in our local data
+        if (currentScan && currentScan.results) {
+            const result = currentScan.results.find(r => r.id === resultId);
+            if (result) {
+                result.status = status.toUpperCase();
+            }
+        }
+        
+        // Update summary and commit button
+        updateScanSummary();
+        updateCommitButtonState();
+    }
+}
+
+// Accept all results
+async function acceptAllResults() {
+    try {
+        const response = await fetch(`/scan/${currentScan.id}/accept`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accept_all: true
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to accept all results');
+        }
+        
+        // Update all result UIs
+        currentScan.results.forEach(result => {
+            updateResultUI(result.id, 'accepted');
+        });
+        
+        console.log('All results accepted successfully');
+        
+    } catch (error) {
+        console.error('Error accepting all results:', error);
+        alert('Failed to accept all results. Please try again.');
+    }
+}
+
+// Reject all results
+async function rejectAllResults() {
+    try {
+        const resultIds = currentScan.results.map(result => result.id);
+        
+        const response = await fetch(`/scan/${currentScan.id}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                result_ids: resultIds
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to reject all results');
+        }
+        
+        // Update all result UIs
+        currentScan.results.forEach(result => {
+            updateResultUI(result.id, 'rejected');
+        });
+        
+        console.log('All results rejected successfully');
+        
+    } catch (error) {
+        console.error('Error rejecting all results:', error);
+        alert('Failed to reject all results. Please try again.');
+    }
+}
+
+// Update scan summary display
+function updateScanSummary() {
+    const summaryElement = document.querySelector('.scan-summary');
+    if (summaryElement && currentScan && currentScan.results) {
+        const accepted = currentScan.results.filter(r => r.status === 'ACCEPTED').length;
+        const rejected = currentScan.results.filter(r => r.status === 'REJECTED').length;
+        const total = currentScan.results.length;
+        
+        summaryElement.textContent = `${accepted} accepted, ${rejected} rejected of ${total} cards`;
+    }
+}
+
+// Update commit button state
+function updateCommitButtonState() {
+    const commitButton = document.getElementById('commitButton');
+    if (commitButton && currentScan && currentScan.results) {
+        const acceptedCount = currentScan.results.filter(r => r.status === 'ACCEPTED').length;
+        
+        if (acceptedCount > 0) {
+            commitButton.disabled = false;
+            commitButton.innerHTML = `<i class="fas fa-plus"></i> Add ${acceptedCount} Card${acceptedCount !== 1 ? 's' : ''} to Collection`;
+            commitButton.className = 'scan-primary-btn';
+        } else {
+            commitButton.disabled = true;
+            commitButton.innerHTML = '<i class="fas fa-plus"></i> No Cards to Add';
+            commitButton.className = 'scan-primary-btn disabled';
+        }
+    }
+}
+
+// Commit accepted cards to collection
+async function commitAcceptedCards() {
+    if (!currentScan || !currentScan.id) {
+        alert('No active scan to commit');
+        return;
+    }
+    
+    const acceptedCount = currentScan.results.filter(r => r.status === 'ACCEPTED').length;
+    if (acceptedCount === 0) {
+        alert('No cards have been accepted. Please accept at least one card before committing.');
+        return;
+    }
+    
+    // Show loading state
+    const commitButton = document.getElementById('commitButton');
+    const originalText = commitButton.innerHTML;
+    commitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding to Collection...';
+    commitButton.disabled = true;
+    
+    try {
+        const response = await fetch(`/scan/${currentScan.id}/commit`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.text();
+            throw new Error(`Failed to commit scan: ${errorData}`);
+        }
+        
+        const result = await response.json();
+        console.log('Scan committed successfully:', result);
+        
+        // Show success and close modal
+        showScanSuccess(result.cards_created);
+        
+    } catch (error) {
+        console.error('Error committing scan:', error);
+        alert(`Failed to add cards to collection: ${error.message}`);
+        
+        // Restore button state
+        commitButton.innerHTML = originalText;
+        commitButton.disabled = false;
+    }
+}
+
+// Commit scan and add accepted cards to collection
+async function commitScan() {
+    try {
+        const response = await fetch(`/scan/${currentScan.id}/commit`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to commit scan');
+        }
+        
+        const result = await response.json();
+        
+        // Show success and close modal
+        showScanSuccess(result.cards_created);
+        
+    } catch (error) {
+        console.error('Error committing scan:', error);
+        showScanError('Failed to add cards to collection.');
+    }
+}
+
+// Show scan success
+function showScanSuccess(cardsCreated) {
+    const body = document.getElementById('scanningBody');
+    const title = document.getElementById('scanningTitle');
+    
+    title.textContent = 'Scan Complete!';
+    
+    body.innerHTML = `
+        <div class="scanning-phase">
+            <div class="scan-phase-indicator">
+                <div class="scan-phase-step completed">
+                    <div class="scan-phase-circle">1</div>
+                    <div class="scan-phase-label">Upload</div>
+                </div>
+                <div class="scan-phase-step completed">
+                    <div class="scan-phase-circle">2</div>
+                    <div class="scan-phase-label">Processing</div>
+                </div>
+                <div class="scan-phase-step completed">
+                    <div class="scan-phase-circle">3</div>
+                    <div class="scan-phase-label">Review</div>
+                </div>
+                <div class="scan-phase-step completed">
+                    <div class="scan-phase-circle">4</div>
+                    <div class="scan-phase-label">Complete</div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; padding: 40px;">
+                <i class="fas fa-check-circle" style="font-size: 4rem; color: #28a745; margin-bottom: 20px;"></i>
+                <h3>Successfully Added ${cardsCreated} Card${cardsCreated !== 1 ? 's' : ''}</h3>
+                <p>Your cards have been added to your collection!</p>
+            </div>
+        </div>
+        
+        <div class="scan-controls">
+            <div></div>
+            <div></div>
+            <button class="scan-primary-btn" onclick="finishScan()">
+                Continue
+            </button>
+        </div>
+    `;
+}
+
+// Show scan error
+function showScanError(message) {
+    const body = document.getElementById('scanningBody');
+    
+    body.innerHTML = `
+        <div class="scanning-phase">
+            <div style="text-align: center; padding: 40px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: #dc3545; margin-bottom: 20px;"></i>
+                <h3>Scan Error</h3>
+                <p>${message}</p>
+            </div>
+        </div>
+        
+        <div class="scan-controls">
+            <div></div>
+            <div></div>
+            <button class="scan-secondary-btn" onclick="closeScanningModal()">
+                Close
+            </button>
+        </div>
+    `;
+}
+
+// Finish scan and refresh main view
+async function finishScan() {
+    closeScanningModal();
+    
+    // Refresh the main card gallery
+    await loadCards();
+    await loadStats();
+}
+
+// Cancel scan
+async function cancelScan() {
+    if (confirm('Are you sure you want to cancel this scan?')) {
+        try {
+            // Stop any ongoing polling immediately
+            if (scanPollingInterval) {
+                clearInterval(scanPollingInterval);
+                scanPollingInterval = null;
+            }
+            
+            // Update UI to show cancellation in progress
+            const scanBody = document.getElementById('scanningBody');
+            if (scanBody) {
+                scanBody.innerHTML = `
+                    <div class="scanning-phase">
+                        <div style="text-align: center; padding: 40px;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #667eea; margin-bottom: 20px;"></i>
+                            <h3>Cancelling scan...</h3>
+                            <p>Please wait while we cancel the scan and clean up files.</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Send cancellation request to backend
+            if (currentScan && currentScan.id) {
+                const response = await fetch(`/scan/${currentScan.id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    console.log('Scan cancelled successfully');
+                } else {
+                    console.warn('Scan cancellation request failed, but proceeding with cleanup');
+                }
+            }
+            
+            // Close the modal and clean up
+            closeScanningModal();
+            
+        } catch (error) {
+            console.error('Error cancelling scan:', error);
+            // Even if cancellation fails, close the modal
+            closeScanningModal();
+        }
+    }
+}
+
+// Close scanning modal
+function closeScanningModal() {
+    const modal = document.getElementById('scanningModal');
+    modal.style.display = 'none';
+    
+    // Clear polling
+    if (scanPollingInterval) {
+        clearInterval(scanPollingInterval);
+        scanPollingInterval = null;
+    }
+    
+    // Clean up object URLs
+    if (currentScan && currentScan.files) {
+        currentScan.files.forEach(file => {
+            URL.revokeObjectURL(URL.createObjectURL(file));
+        });
+    }
+    
+    currentScan = null;
+}
+
+// Show image comparison dialog
+function showImageComparison(cardName, officialImageUrl, scanImageUrl) {
+    // Create comparison modal
+    const comparisonModal = document.createElement('div');
+    comparisonModal.id = 'imageComparisonModal';
+    comparisonModal.className = 'image-comparison-modal';
+    
+    const modalContent = `
+        <div class="image-comparison-content">
+            <div class="image-comparison-header">
+                <h3>${cardName}</h3>
+                <button class="close-btn" onclick="closeImageComparison()">&times;</button>
+            </div>
+            <div class="image-comparison-body">
+                <div class="comparison-column left-column">
+                    <h4>Official Image</h4>
+                    <div class="official-image-container">
+                        <img src="${officialImageUrl}" alt="${cardName} - Official" class="official-comparison-image"
+                             onerror="this.src='https://via.placeholder.com/250x349/667eea/ffffff?text=No+Official+Image+Found'; this.parentNode.innerHTML='<div class=&quot;no-official-image&quot;><i class=&quot;fas fa-image&quot;></i><p>No official image available</p><p>This card may not be in the Scryfall database</p></div>';">
+                    </div>
+                </div>
+                <div class="comparison-column right-column">
+                    <h4>Scanned Image</h4>
+                    <div class="scan-image-container">
+                        ${scanImageUrl ? `
+                            <div class="zoomable-image-container">
+                                <img src="${scanImageUrl}" alt="${cardName} - Scan" class="scan-comparison-image"
+                                     onerror="this.src='https://via.placeholder.com/400x300/999999/ffffff?text=No+Scan+Image'">
+                            </div>
+                        ` : `
+                            <div class="no-scan-image">
+                                <i class="fas fa-image"></i>
+                                <p>No scan image available</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    comparisonModal.innerHTML = modalContent;
+    
+    // Add to document
+    document.body.appendChild(comparisonModal);
+    
+    // Add zoom functionality to scan image with proper bounds
+    if (scanImageUrl) {
+        const scanImage = comparisonModal.querySelector('.scan-comparison-image');
+        const imageContainer = comparisonModal.querySelector('.scan-image-container');
+        
+        if (scanImage && imageContainer) {
+            let scale = 1;
+            let isDragging = false;
+            let startX, startY, translateX = 0, translateY = 0;
+            
+            // Function to constrain translation within bounds
+            const constrainTranslation = () => {
+                const containerRect = imageContainer.getBoundingClientRect();
+                
+                // Get original image dimensions
+                const imageNaturalWidth = scanImage.naturalWidth || scanImage.width;
+                const imageNaturalHeight = scanImage.naturalHeight || scanImage.height;
+                
+                // Calculate scaled image dimensions
+                const scaledWidth = imageNaturalWidth * scale;
+                const scaledHeight = imageNaturalHeight * scale;
+                
+                // Calculate max translation boundaries based on scaled size
+                const maxTranslateX = Math.max(0, (scaledWidth - containerRect.width) / (2 * scale));
+                const maxTranslateY = Math.max(0, (scaledHeight - containerRect.height) / (2 * scale));
+                
+                // Constrain translation to keep image within bounds
+                translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, translateX));
+                translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, translateY));
+            };
+            
+            // Apply transform with constraints
+            const applyTransform = () => {
+                constrainTranslation();
+                scanImage.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+            };
+            
+            // Zoom with mouse wheel - zoom towards cursor position
+            scanImage.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                
+                const containerRect = imageContainer.getBoundingClientRect();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                const newScale = Math.max(0.5, Math.min(3, scale * delta));
+                
+                // Calculate cursor position relative to container center
+                const cursorX = e.clientX - containerRect.left - containerRect.width / 2;
+                const cursorY = e.clientY - containerRect.top - containerRect.height / 2;
+                
+                // Adjust translation to zoom towards cursor
+                const scaleChange = newScale / scale;
+                translateX = translateX * scaleChange + cursorX * (1 - scaleChange) / newScale;
+                translateY = translateY * scaleChange + cursorY * (1 - scaleChange) / newScale;
+                
+                scale = newScale;
+                applyTransform();
+            });
+            
+            // Pan with mouse drag
+            scanImage.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                startX = e.clientX - translateX;
+                startY = e.clientY - translateY;
+                scanImage.style.cursor = 'grabbing';
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                translateX = e.clientX - startX;
+                translateY = e.clientY - startY;
+                applyTransform();
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                if (scanImage) scanImage.style.cursor = 'grab';
+            });
+            
+            // Initial setup
+            scanImage.style.cursor = 'grab';
+            scanImage.style.userSelect = 'none';
+            scanImage.style.transformOrigin = 'center center';
+            
+            // Add double-click to reset
+            scanImage.addEventListener('dblclick', () => {
+                scale = 1;
+                translateX = 0;
+                translateY = 0;
+                applyTransform();
+            });
+        }
+    }
+    
+    // Add click outside to close
+    comparisonModal.addEventListener('click', (e) => {
+        if (e.target === comparisonModal) {
+            closeImageComparison();
+        }
+    });
+    
+    // Add escape key handler
+    document.addEventListener('keydown', handleImageComparisonEscape);
+}
+
+// Close image comparison dialog
+function closeImageComparison() {
+    const comparisonModal = document.getElementById('imageComparisonModal');
+    if (comparisonModal) {
+        document.removeEventListener('keydown', handleImageComparisonEscape);
+        comparisonModal.remove();
+    }
+}
+
+// Handle escape key for image comparison
+function handleImageComparisonEscape(e) {
+    if (e.key === 'Escape') {
+        closeImageComparison();
+    }
+}
+
+// Show full scan image for zero cards found
+function showFullScanImage(fileName, imageUrl) {
+    // Create full image modal
+    const fullImageModal = document.createElement('div');
+    fullImageModal.id = 'fullScanImageModal';
+    fullImageModal.className = 'image-comparison-modal';
+    
+    const modalContent = `
+        <div class="full-scan-content">
+            <div class="full-scan-header">
+                <h3>Scanned Image: ${fileName}</h3>
+                <button class="close-btn" onclick="closeFullScanImage()">&times;</button>
+            </div>
+            <div class="full-scan-body">
+                <div class="zoomable-scan-container">
+                    <img src="${imageUrl}" alt="${fileName}" class="full-scan-image">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    fullImageModal.innerHTML = modalContent;
+    
+    // Add to document
+    document.body.appendChild(fullImageModal);
+    
+    // Add zoom functionality with proper bounds
+    const scanImage = fullImageModal.querySelector('.full-scan-image');
+    const imageContainer = fullImageModal.querySelector('.zoomable-scan-container');
+    
+    if (scanImage && imageContainer) {
+        let scale = 1;
+        let isDragging = false;
+        let startX, startY, translateX = 0, translateY = 0;
+        
+        // Function to constrain translation within bounds
+        const constrainTranslation = () => {
+            const containerRect = imageContainer.getBoundingClientRect();
+            
+            // Get original image dimensions
+            const imageNaturalWidth = scanImage.naturalWidth || scanImage.width;
+            const imageNaturalHeight = scanImage.naturalHeight || scanImage.height;
+            
+            // Calculate scaled image dimensions
+            const scaledWidth = imageNaturalWidth * scale;
+            const scaledHeight = imageNaturalHeight * scale;
+            
+            // Calculate max translation boundaries based on scaled size
+            const maxTranslateX = Math.max(0, (scaledWidth - containerRect.width) / (2 * scale));
+            const maxTranslateY = Math.max(0, (scaledHeight - containerRect.height) / (2 * scale));
+            
+            // Constrain translation to keep image within bounds
+            translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, translateX));
+            translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, translateY));
+        };
+        
+        // Apply transform with constraints
+        const applyTransform = () => {
+            constrainTranslation();
+            scanImage.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+        };
+        
+        // Zoom with mouse wheel - zoom towards cursor position
+        scanImage.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            const containerRect = imageContainer.getBoundingClientRect();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const newScale = Math.max(0.3, Math.min(5, scale * delta));
+            
+            // Calculate cursor position relative to container center
+            const cursorX = e.clientX - containerRect.left - containerRect.width / 2;
+            const cursorY = e.clientY - containerRect.top - containerRect.height / 2;
+            
+            // Adjust translation to zoom towards cursor
+            const scaleChange = newScale / scale;
+            translateX = translateX * scaleChange + cursorX * (1 - scaleChange) / newScale;
+            translateY = translateY * scaleChange + cursorY * (1 - scaleChange) / newScale;
+            
+            scale = newScale;
+            applyTransform();
+        });
+        
+        // Pan with mouse drag
+        scanImage.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            scanImage.style.cursor = 'grabbing';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            applyTransform();
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            if (scanImage) scanImage.style.cursor = 'grab';
+        });
+        
+        // Initial setup
+        scanImage.style.cursor = 'grab';
+        scanImage.style.userSelect = 'none';
+        scanImage.style.transformOrigin = 'center center';
+        
+        // Add double-click to reset
+        scanImage.addEventListener('dblclick', () => {
+            scale = 1;
+            translateX = 0;
+            translateY = 0;
+            applyTransform();
+        });
+    }
+    
+    // Add click outside to close
+    fullImageModal.addEventListener('click', (e) => {
+        if (e.target === fullImageModal) {
+            closeFullScanImage();
+        }
+    });
+    
+    // Add escape key handler
+    document.addEventListener('keydown', handleFullScanEscape);
+}
+
+// Close full scan image dialog
+function closeFullScanImage() {
+    const fullImageModal = document.getElementById('fullScanImageModal');
+    if (fullImageModal) {
+        document.removeEventListener('keydown', handleFullScanEscape);
+        fullImageModal.remove();
+    }
+}
+
+// Handle escape key for full scan image
+function handleFullScanEscape(e) {
+    if (e.key === 'Escape') {
+        closeFullScanImage();
+    }
+}
+
+// Tools dropdown functionality
+function toggleToolsMenu() {
+    const dropdown = document.getElementById('toolsDropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close tools dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const toolsContainer = document.querySelector('.tools-container');
+    const dropdown = document.getElementById('toolsDropdown');
+    
+    if (!toolsContainer.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
+});
+
+// Scan History functionality
+async function showScanHistory() {
+    // Close tools dropdown
+    const dropdown = document.getElementById('toolsDropdown');
+    dropdown.classList.remove('show');
+    
+    // Show modal
+    const modal = document.getElementById('scanHistoryModal');
+    modal.style.display = 'flex';
+    
+    // Load scan history data
+    await loadScanHistory();
+}
+
+function closeScanHistoryModal() {
+    const modal = document.getElementById('scanHistoryModal');
+    modal.style.display = 'none';
+}
+
+async function loadScanHistory() {
+    const body = document.getElementById('scanHistoryBody');
+    
+    // Show loading state
+    body.innerHTML = `
+        <div class="scan-history-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading scan history...</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/scan/history');
+        if (!response.ok) {
+            throw new Error('Failed to load scan history');
+        }
+        
+        const scanHistory = await response.json();
+        displayScanHistory(scanHistory);
+        
+    } catch (error) {
+        console.error('Error loading scan history:', error);
+        body.innerHTML = `
+            <div class="empty-scan-history">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Error Loading History</h3>
+                <p>Failed to load scan history. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+function displayScanHistory(scanHistory) {
+    const body = document.getElementById('scanHistoryBody');
+    
+    if (!scanHistory.scans || scanHistory.scans.length === 0) {
+        body.innerHTML = `
+            <div class="empty-scan-history">
+                <i class="fas fa-history"></i>
+                <h3>No Scan History</h3>
+                <p>You haven't performed any scans yet. Start by uploading some card images!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const scansHtml = scanHistory.scans.map(scan => createScanHistoryItem(scan)).join('');
+    
+    body.innerHTML = `
+        <div class="scan-history-list">
+            ${scansHtml}
+        </div>
+    `;
+}
+
+function createScanHistoryItem(scan) {
+    const scanDate = new Date(scan.created_at);
+    const formattedDate = scanDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+    const formattedTime = scanDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    const imagesHtml = scan.images && scan.images.length > 0 
+        ? scan.images.map(image => `
+            <img src="/uploads/${image.filename}" 
+                 alt="Scan image" 
+                 class="scan-thumbnail"
+                 onclick="showFullScanImage('${image.filename}', '/uploads/${image.filename}')"
+                 title="${image.original_filename}">
+        `).join('')
+        : '<p style="color: #999; font-style: italic;">No images available</p>';
+    
+    const cardsHtml = scan.cards && scan.cards.length > 0
+        ? scan.cards.map(card => `
+            <div class="scan-card-item">
+                <i class="fas fa-check-circle"></i>
+                <span>${card.name} (${card.set_name})</span>
+            </div>
+        `).join('')
+        : '<p style="color: #999; font-style: italic;">No cards identified</p>';
+    
+    const statusText = scan.status === 'completed' ? 'Completed' : scan.status === 'failed' ? 'Failed' : 'In Progress';
+    const statusColor = scan.status === 'completed' ? '#28a745' : scan.status === 'failed' ? '#dc3545' : '#ffc107';
+    
+    return `
+        <div class="scan-item">
+            <div class="scan-header">
+                <div class="scan-info">
+                    <h4>Scan #${scan.id}</h4>
+                    <div class="scan-meta">
+                        ${formattedDate} at ${formattedTime} • 
+                        <span style="color: ${statusColor}; font-weight: 500;">${statusText}</span>
+                    </div>
+                </div>
+                <div class="scan-stats">
+                    <div>${scan.total_images || 0} images</div>
+                    <div>${scan.cards_count || 0} cards found</div>
+                </div>
+            </div>
+            
+            ${scan.images && scan.images.length > 0 ? `
+                <div class="scan-images">
+                    ${imagesHtml}
+                </div>
+            ` : ''}
+            
+            ${scan.cards && scan.cards.length > 0 ? `
+                <div class="scan-cards">
+                    <h5>Cards Found (${scan.cards.length})</h5>
+                    <div class="scan-cards-list">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+} 
