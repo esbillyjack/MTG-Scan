@@ -51,9 +51,10 @@ python backup_manager.py stats
 - **Upload Files**: 136
 
 ### Backup Location
-- **Backup Directory**: `backups/`
+- **Backup Directory**: `backups/` (local only)
 - **Backup Format**: ZIP files with metadata
 - **Retention**: Last 10 backups kept automatically
+- **Git Status**: Excluded from version control
 
 ## 🛡️ Prevention Checklist
 
@@ -82,7 +83,7 @@ python backup_manager.py stats
 ### Critical Files to Protect:
 - `magic_cards.db` - Main database
 - `uploads/` - Scan images
-- `backups/` - Backup files
+- `backups/` - Backup files (local only)
 
 ## ⚡ Quick Commands
 
@@ -148,6 +149,17 @@ python backup_manager.py reconstruct --json-file backups/cards_export_YYYYMMDD_H
 4. **Monitor backup logs for errors**
 5. **Document any custom procedures**
 
+## 🔐 Local Storage Benefits
+
+- **Privacy**: No cloud storage of your data
+- **Control**: Complete control over backup files
+- **Speed**: Fast local access and restoration
+- **Cost**: No cloud storage fees
+
+**Recommended**: Copy `backups/` to external drive weekly for additional protection.
+
 ---
 
-**Remember**: The best backup is the one you actually use. Set up automatic backups and test your recovery procedures regularly! 
+**Remember**: The best backup is the one you actually use. Set up automatic backups and test your recovery procedures regularly!
+
+**Note**: All backups are stored locally in the `backups/` directory and are excluded from git to prevent large files from being committed to the repository. 

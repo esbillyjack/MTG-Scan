@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 """
-Magic Card Scanner - Backup Manager
-Provides comprehensive backup and recovery functionality for the database and uploads.
+Database Backup Manager for Magic Card Scanner
+
+This script provides comprehensive backup and recovery capabilities for the Magic Card Scanner database.
+It handles full backups (database + uploads), restoration, integrity checks, and data export/reconstruction.
+
+Features:
+- Full backup with database and upload files
+- Automatic backup rotation (keeps last 10)
+- Integrity verification
+- Data export to JSON for reconstruction
+- Emergency recovery procedures
+- Local backup storage (not committed to git)
+
+Usage:
+    python backup_manager.py backup [--name backup_name]
+    python backup_manager.py restore --backup-file backup.zip
+    python backup_manager.py list
+    python backup_manager.py stats
+    python backup_manager.py export
+    python backup_manager.py reconstruct --json-file export.json
 """
 
 import os
