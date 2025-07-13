@@ -8,6 +8,10 @@ let scanPollingInterval = null;
 let fileInputBusy = false; // Flag to prevent multiple file input clicks
 let fileInputTimeout = null; // Timeout to reset busy flag
 
+// Sorting variables
+let sortField = 'name'; // Default sort field
+let sortDirection = 'asc'; // 'asc' or 'desc'
+
 // Camera variables
 let cameraStream = null;
 let cameraModal = null;
@@ -34,6 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DEBUG: DOMContentLoaded fired, initializing application');
     setupEventListeners();
     initializeCamera();
+    initializeSortUI();
     loadCards();
     loadStats();
     addTestData(); // Add test data with real Magic cards
@@ -807,12 +812,128 @@ function createDatabaseCard(card, index, filteredCards) {
 
 // Filter cards based on search term
 function filterCards() {
-    if (!searchTerm) return cards;
+    let filteredCards = cards;
     
-    return cards.filter(card => 
-        card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (card.set_name && card.set_name.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // Apply search filter
+    if (searchTerm) {
+        filteredCards = filteredCards.filter(card => 
+            card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (card.set_name && card.set_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (card.notes && card.notes.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    }
+    
+    // Apply sorting
+    return sortCards(filteredCards);
+}
+
+// Sort cards based on current sort field and direction
+function sortCards(cardsToSort) {
+    if (!cardsToSort || cardsToSort.length === 0) return cardsToSort;
+    
+    return cardsToSort.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (sortField) {
+            case 'name':
+                aValue = a.name || '';
+                bValue = b.name || '';
+                break;
+                
+            case 'set':
+                aValue = a.set_name || '';
+                bValue = b.set_name || '';
+                break;
+                
+            case 'rarity':
+                // Define rarity hierarchy
+                const rarityOrder = { 'common': 1, 'uncommon': 2, 'rare': 3, 'mythic': 4, 'bonus': 5, 'special': 6, 'masterpiece': 7 };
+                aValue = rarityOrder[a.rarity?.toLowerCase()] || 0;
+                bValue = rarityOrder[b.rarity?.toLowerCase()] || 0;
+                break;
+                
+            case 'price':
+                aValue = parseFloat(a.price_usd) || 0;
+                bValue = parseFloat(b.price_usd) || 0;
+                break;
+                
+            case 'count':
+                // Use stack_count for stacked view, count for individual view
+                aValue = viewMode === 'stacked' ? (a.stack_count || a.total_cards || 1) : (a.count || 1);
+                bValue = viewMode === 'stacked' ? (b.stack_count || b.total_cards || 1) : (b.count || 1);
+                break;
+                
+            case 'condition':
+                // Define condition hierarchy
+                const conditionOrder = { 'NM': 1, 'LP': 2, 'MP': 3, 'HP': 4, 'DMG': 5 };
+                aValue = conditionOrder[a.condition] || 0;
+                bValue = conditionOrder[b.condition] || 0;
+                break;
+                
+            case 'date':
+                aValue = new Date(a.first_seen || a.last_seen || 0);
+                bValue = new Date(b.first_seen || b.last_seen || 0);
+                break;
+                
+            case 'mana':
+                aValue = calculateManaCost(a.mana_cost);
+                bValue = calculateManaCost(b.mana_cost);
+                break;
+                
+            case 'color':
+                aValue = getColorSortValue(a.colors);
+                bValue = getColorSortValue(b.colors);
+                break;
+                
+            case 'type':
+                aValue = a.type_line || '';
+                bValue = b.type_line || '';
+                break;
+                
+            default:
+                aValue = a.name || '';
+                bValue = b.name || '';
+        }
+        
+        // Handle different data types
+        let comparison = 0;
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+            comparison = aValue.localeCompare(bValue);
+        } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+            comparison = aValue - bValue;
+        } else if (aValue instanceof Date && bValue instanceof Date) {
+            comparison = aValue.getTime() - bValue.getTime();
+        } else {
+            // Fallback to string comparison
+            comparison = String(aValue).localeCompare(String(bValue));
+        }
+        
+        return sortDirection === 'asc' ? comparison : -comparison;
+    });
+}
+
+// Calculate converted mana cost for sorting
+function calculateManaCost(manaCost) {
+    if (!manaCost) return 0;
+    
+    // Extract numbers from mana cost string
+    const numbers = manaCost.match(/\d+/g);
+    if (!numbers) return 0;
+    
+    return numbers.reduce((sum, num) => sum + parseInt(num), 0);
+}
+
+// Get color sort value (WUBRG order)
+function getColorSortValue(colors) {
+    if (!colors || colors.length === 0) return 'Z'; // Colorless goes last
+    
+    const colorOrder = { 'W': 1, 'U': 2, 'B': 3, 'R': 4, 'G': 5 };
+    const colorArray = Array.isArray(colors) ? colors : JSON.parse(colors || '[]');
+    
+    if (colorArray.length === 0) return 'Z'; // Colorless
+    if (colorArray.length > 1) return 'A'; // Multicolor goes first
+    
+    return String.fromCharCode(64 + (colorOrder[colorArray[0]] || 6)); // Single colors
 }
 
 // Handle search input
@@ -3093,6 +3214,82 @@ document.addEventListener('click', function(event) {
         dropdown.classList.remove('show');
     }
 });
+
+// Sort dropdown functionality
+function toggleSortMenu() {
+    const dropdown = document.getElementById('sortDropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close sort dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const sortContainer = document.querySelector('.sort-container');
+    const dropdown = document.getElementById('sortDropdown');
+    
+    if (dropdown && !sortContainer.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
+});
+
+// Toggle sort direction
+function toggleSortDirection() {
+    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    updateSortDirectionIcon();
+    displayCards(); // Refresh the display
+}
+
+// Update sort direction icon
+function updateSortDirectionIcon() {
+    const icon = document.getElementById('sortDirectionIcon');
+    if (!icon) return;
+    
+    if (sortDirection === 'asc') {
+        icon.className = 'fas fa-sort-alpha-down';
+    } else {
+        icon.className = 'fas fa-sort-alpha-up';
+    }
+}
+
+// Set sort field
+function setSortField(field) {
+    // Remove active class from all sort items
+    document.querySelectorAll('.sort-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Add active class to selected item
+    const selectedItem = document.querySelector(`[data-field="${field}"]`);
+    if (selectedItem) {
+        selectedItem.classList.add('active');
+    }
+    
+    // Update sort field
+    sortField = field;
+    
+    // Update direction icon based on field type
+    updateSortDirectionIcon();
+    
+    // Close dropdown
+    const dropdown = document.getElementById('sortDropdown');
+    if (dropdown) {
+        dropdown.classList.remove('show');
+    }
+    
+    // Refresh display
+    displayCards();
+}
+
+// Initialize sort UI
+function initializeSortUI() {
+    // Set initial active sort item
+    const nameItem = document.querySelector('[data-field="name"]');
+    if (nameItem) {
+        nameItem.classList.add('active');
+    }
+    
+    // Set initial sort direction icon
+    updateSortDirectionIcon();
+}
 
 // View scan image functionality
 async function viewScanImage(scanId, cardName) {

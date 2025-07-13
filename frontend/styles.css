@@ -1087,6 +1087,126 @@ body {
     width: 16px;
 }
 
+/* Sort dropdown */
+.sort-container {
+    position: relative;
+    display: inline-block;
+}
+
+.sort-btn {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    color: #28a745;
+}
+
+.sort-btn:hover {
+    background: #e9ecef;
+    border-color: #28a745;
+    transform: translateY(-1px);
+}
+
+.sort-btn:active {
+    transform: translateY(0);
+}
+
+.sort-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    min-width: 220px;
+    display: none;
+    margin-top: 4px;
+}
+
+.sort-dropdown.show {
+    display: block;
+}
+
+.sort-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+}
+
+.sort-header span {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.sort-direction-btn {
+    background: none;
+    border: none;
+    color: #28a745;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 1rem;
+}
+
+.sort-direction-btn:hover {
+    background: #e9ecef;
+    transform: scale(1.1);
+}
+
+.sort-item {
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.sort-item:hover {
+    background-color: #f8f9fa;
+}
+
+.sort-item.active {
+    background-color: #e8f5e8;
+    color: #28a745;
+    font-weight: 600;
+}
+
+.sort-item:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+.sort-item i {
+    color: #28a745;
+    width: 16px;
+}
+
+.sort-item.active i {
+    color: #28a745;
+}
+
 /* Scan History Modal */
 .scan-history-content {
     max-width: 900px;
