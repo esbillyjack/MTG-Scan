@@ -517,7 +517,14 @@ function createSpreadCard(cardData, parentCard, index) {
             <div class="card-name">${parentCard.name}</div>
             <div class="card-condition">Condition: ${cardData.condition || 'Unknown'}</div>
             <div class="card-count">Count: ${cardData.count || 1}</div>
-            <div class="card-added">Added: ${formatDate(cardData.first_seen)} (${formatAddedMethod(cardData.added_method)})</div>
+            <div class="card-added">
+                Added: ${formatDate(cardData.first_seen)} (${formatAddedMethod(cardData.added_method)})
+                ${cardData.added_method === 'SCANNED' && cardData.scan_id ? 
+                    `<button class="view-scan-btn-small" onclick="viewScanImage(${cardData.scan_id}, '${parentCard.name}')" title="View scanned image">
+                        👓
+                    </button>` : ''
+                }
+            </div>
         </div>
     `;
     
@@ -1095,6 +1102,11 @@ function createEnhancedCardDetailHTML(card, index, total) {
                     <span class="detail-value">
                         ${formatDate(card.first_seen)} 
                         <span class="added-method">(${formatAddedMethod(card.added_method)})</span>
+                        ${card.added_method === 'SCANNED' && card.scan_id ? 
+                            `<button class="view-scan-btn" onclick="viewScanImage(${card.scan_id}, '${card.name}')" title="View scanned image">
+                                👓
+                            </button>` : ''
+                        }
                     </span>
                 </div>
                 <div class="detail-row">
@@ -2514,6 +2526,34 @@ document.addEventListener('click', function(event) {
         dropdown.classList.remove('show');
     }
 });
+
+// View scan image functionality
+async function viewScanImage(scanId, cardName) {
+    try {
+        // Fetch scan data to get the image filename
+        const response = await fetch(`/scan/${scanId}/details`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch scan details');
+        }
+        
+        const scanData = await response.json();
+        if (!scanData.success || !scanData.scan.images || scanData.scan.images.length === 0) {
+            alert('No scan image found for this card');
+            return;
+        }
+        
+        // Use the first image from the scan
+        const imageFilename = scanData.scan.images[0].filename;
+        const imageUrl = `/${imageFilename}`;
+        
+        // Show the scan image in full screen
+        showFullScanImage(imageFilename, imageUrl, `Original scan for: ${cardName}`);
+        
+    } catch (error) {
+        console.error('Error viewing scan image:', error);
+        alert('Failed to load scan image');
+    }
+}
 
 // Scan History functionality
 async function showScanHistory() {

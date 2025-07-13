@@ -1005,6 +1005,50 @@ async def populate_missing_sets(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error populating sets: {str(e)}")
 
 
+@app.get("/scan/{scan_id}/details")
+async def get_scan_details(scan_id: int, db: Session = Depends(get_db)):
+    """Get detailed information about a specific scan"""
+    try:
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Get scan images
+        scan_images = db.query(ScanImage).filter(ScanImage.scan_id == scan.id).all()
+        images = []
+        for img in scan_images:
+            images.append({
+                "filename": img.filename,
+                "url": f"/{img.filename}"
+            })
+        
+        # Get cards from this scan
+        cards = db.query(Card).filter(Card.scan_id == scan.id, Card.deleted == False).all()
+        card_list = []
+        for card in cards:
+            card_list.append({
+                "name": card.name,
+                "set_name": card.set_name,
+                "condition": card.condition
+            })
+        
+        return {
+            "success": True,
+            "scan": {
+                "id": scan.id,
+                "status": scan.status,
+                "total_images": scan.total_images,
+                "created_at": scan.created_at.isoformat() if scan.created_at else None,
+                "images": images,
+                "cards": card_list
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error getting scan details: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting scan details: {str(e)}")
+
+
 @app.get("/scan/history")
 async def get_scan_history(db: Session = Depends(get_db)):
     """Get all scan history with images and cards found"""
