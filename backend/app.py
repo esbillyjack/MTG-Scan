@@ -62,10 +62,32 @@ except ValueError as e:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    """Serve the main HTML page"""
+    """Serve the main HTML page with environment-specific styling"""
     async with aiofiles.open("frontend/index.html", mode="r") as f:
         content = await f.read()
+    
+    # Get environment mode
+    env_mode = os.getenv("ENV_MODE", "production")
+    
+    # Inject environment class into the body tag
+    if env_mode == "development":
+        content = content.replace('<body>', '<body class="env-development">')
+    else:
+        content = content.replace('<body>', '<body class="env-production">')
+    
     return HTMLResponse(content=content)
+
+@app.get("/api/environment")
+async def get_environment():
+    """Get current environment information"""
+    env_mode = os.getenv("ENV_MODE", "production")
+    port = int(os.getenv("PORT", 8000))
+    
+    return {
+        "environment": env_mode,
+        "port": port,
+        "is_development": env_mode == "development"
+    }
 
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):

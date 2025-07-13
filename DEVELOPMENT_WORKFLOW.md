@@ -150,6 +150,15 @@ git push origin develop
 - **Production**: `ENV_MODE=production`, `PORT=8000`
 - **Development**: `ENV_MODE=development`, `PORT=8001`
 
+### Visual Environment Indicators
+- **Production**: Blue/purple gradient background
+- **Development**: Red/orange gradient background with visual indicators:
+  - "🛠️ DEVELOPMENT MODE" badge in top-right corner
+  - "🛠️ Development Mode - Port 8001" badge in header
+  - Console logs showing environment info
+
+This makes it immediately obvious which environment you're working in!
+
 ## Best Practices
 
 ### Commit Messages

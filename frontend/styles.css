@@ -12,6 +12,30 @@ body {
     color: #333;
 }
 
+/* Environment-specific styling */
+body.env-production {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+body.env-development {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+}
+
+body.env-development::before {
+    content: "🛠️ DEVELOPMENT MODE";
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #ee5a24;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 10000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
 .container {
     max-width: 1400px;
     margin: 0 auto;

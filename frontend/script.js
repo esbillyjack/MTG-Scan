@@ -36,6 +36,7 @@ const modalBody = document.getElementById('modalBody');
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DEBUG: DOMContentLoaded fired, initializing application');
+    checkEnvironment();
     setupEventListeners();
     initializeCamera();
     initializeSortUI();
@@ -44,6 +45,44 @@ document.addEventListener('DOMContentLoaded', function() {
     addTestData(); // Add test data with real Magic cards
     console.log('🚀 DEBUG: Application initialization complete');
 });
+
+// Check and display environment information
+async function checkEnvironment() {
+    try {
+        const response = await fetch('/api/environment');
+        const envInfo = await response.json();
+        
+        console.log(`🌍 Environment: ${envInfo.environment.toUpperCase()}`);
+        console.log(`🌐 Port: ${envInfo.port}`);
+        console.log(`🛠️ Development Mode: ${envInfo.is_development}`);
+        
+        // Store environment info globally for other functions to use
+        window.environmentInfo = envInfo;
+        
+        // Add environment badge to header if in development
+        if (envInfo.is_development) {
+            const header = document.querySelector('.header');
+            if (header) {
+                const badge = document.createElement('div');
+                badge.className = 'environment-badge';
+                badge.innerHTML = '🛠️ Development Mode - Port ' + envInfo.port;
+                badge.style.cssText = `
+                    background: rgba(255, 255, 255, 0.2);
+                    color: white;
+                    padding: 5px 15px;
+                    border-radius: 20px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    margin-top: 10px;
+                    display: inline-block;
+                `;
+                header.appendChild(badge);
+            }
+        }
+    } catch (error) {
+        console.error('Failed to fetch environment info:', error);
+    }
+}
 
 // Setup event listeners
 function setupEventListeners() {
