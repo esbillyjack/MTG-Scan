@@ -16,7 +16,7 @@ import platform
 
 def get_database_connection():
     """Get database connection."""
-    db_path = Path(__file__).parent / "backend" / "cards.db"
+    db_path = Path(__file__).parent / "magic_cards.db"
     return sqlite3.connect(str(db_path))
 
 def export_cards_to_file(file_path, file_format="csv", overwrite=False):
@@ -37,14 +37,21 @@ def export_cards_to_file(file_path, file_format="csv", overwrite=False):
         SELECT 
             name,
             set_code,
+            set_name,
+            collector_number,
             rarity,
             condition,
             price_usd,
+            mana_cost,
+            type_line,
             oracle_text,
+            count,
             notes,
-            created_at,
-            updated_at
+            first_seen,
+            last_seen,
+            added_method
         FROM cards 
+        WHERE deleted = 0
         ORDER BY name, set_code
         """
         
@@ -61,18 +68,29 @@ def export_cards_to_file(file_path, file_format="csv", overwrite=False):
         df['price_usd'] = df['price_usd'].apply(lambda x: f"${x:.2f}" if pd.notna(x) and x > 0 else "")
         df['oracle_text'] = df['oracle_text'].fillna("")
         df['notes'] = df['notes'].fillna("")
+        df['mana_cost'] = df['mana_cost'].fillna("")
+        df['type_line'] = df['type_line'].fillna("")
+        df['set_name'] = df['set_name'].fillna("")
+        df['collector_number'] = df['collector_number'].fillna("")
+        df['added_method'] = df['added_method'].fillna("LEGACY")
         
         # Rename columns for better readability
         df.columns = [
             'Card Name',
-            'Set Code', 
+            'Set Code',
+            'Set Name',
+            'Collector Number',
             'Rarity',
             'Condition',
             'Price (USD)',
+            'Mana Cost',
+            'Type Line',
             'Oracle Text',
+            'Count',
             'Notes',
-            'Added Date',
-            'Updated Date'
+            'First Seen',
+            'Last Seen',
+            'Added Method'
         ]
         
         # Create output directory if it doesn't exist
