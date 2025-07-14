@@ -1007,6 +1007,203 @@ function handleSearch(e) {
     displayCards();
 }
 
+// Show database status modal
+async function showDatabaseStatus() {
+    const modal = document.getElementById('cardModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    
+    modalTitle.textContent = 'Database & Storage Status';
+    modalBody.innerHTML = `
+        <div class="database-status-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading database status...</p>
+        </div>
+    `;
+    
+    modal.style.display = 'block';
+    
+    try {
+        const response = await fetch('/api/database/status');
+        const status = await response.json();
+        
+        if (status.error) {
+            modalBody.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error Loading Database Status</h3>
+                    <p>${status.error}</p>
+                </div>
+            `;
+            return;
+        }
+        
+        modalBody.innerHTML = createDatabaseStatusHTML(status);
+        
+    } catch (error) {
+        console.error('Error loading database status:', error);
+        modalBody.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Connection Error</h3>
+                <p>Unable to load database status. Please check your connection.</p>
+            </div>
+        `;
+    }
+}
+
+// Create database status HTML
+function createDatabaseStatusHTML(status) {
+    const { database, storage, statistics, recent_activity, environment } = status;
+    
+    return `
+        <div class="database-status-content">
+            <!-- Database Information -->
+            <div class="status-section">
+                <h3><i class="fas fa-database"></i> Database Information</h3>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <label>Database Type:</label>
+                        <span class="status-value ${database.is_cloud ? 'cloud' : 'local'}">${database.type}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Location:</label>
+                        <span class="status-value">${database.location}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Database Size:</label>
+                        <span class="status-value">${database.file_size}</span>
+                    </div>
+                    ${database.url ? `
+                    <div class="status-item full-width">
+                        <label>Connection URL:</label>
+                        <span class="status-value code">${database.url}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <!-- Storage Information -->
+            <div class="status-section">
+                <h3><i class="fas fa-folder-open"></i> File Storage</h3>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <label>Storage Type:</label>
+                        <span class="status-value ${storage.uses_railway_files ? 'cloud' : 'local'}">${storage.type}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Total Files:</label>
+                        <span class="status-value">${storage.total_files}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Total Size:</label>
+                        <span class="status-value">${storage.total_size}</span>
+                    </div>
+                    <div class="status-item full-width">
+                        <label>Storage Path:</label>
+                        <span class="status-value code">${storage.path}</span>
+                    </div>
+                    ${storage.railway_url ? `
+                    <div class="status-item full-width">
+                        <label>Railway URL:</label>
+                        <span class="status-value code">${storage.railway_url}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="status-section">
+                <h3><i class="fas fa-chart-bar"></i> Statistics</h3>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <label>Total Cards:</label>
+                        <span class="status-value highlight">${statistics.total_cards}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Total Scans:</label>
+                        <span class="status-value highlight">${statistics.total_scans}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Card Entries:</label>
+                        <span class="status-value highlight">${statistics.total_card_entries}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Cards per Scan:</label>
+                        <span class="status-value">${statistics.cards_per_scan}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Environment -->
+            <div class="status-section">
+                <h3><i class="fas fa-cog"></i> Environment</h3>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <label>Environment:</label>
+                        <span class="status-value ${environment.env_mode === 'development' ? 'dev' : 'prod'}">${environment.env_mode}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Port:</label>
+                        <span class="status-value">${environment.port}</span>
+                    </div>
+                    <div class="status-item">
+                        <label>OpenAI API:</label>
+                        <span class="status-value ${environment.openai_configured ? 'configured' : 'missing'}">${environment.openai_configured ? 'Configured' : 'Not Configured'}</span>
+                    </div>
+                    ${environment.railway_environment ? `
+                    <div class="status-item">
+                        <label>Railway Env:</label>
+                        <span class="status-value">${environment.railway_environment}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <!-- Recent Activity -->
+            <div class="status-section">
+                <h3><i class="fas fa-clock"></i> Recent Activity</h3>
+                
+                <div class="activity-subsection">
+                    <h4>Recent Cards Added</h4>
+                    <div class="activity-list">
+                        ${recent_activity.recent_cards.length > 0 ? recent_activity.recent_cards.map(card => `
+                            <div class="activity-item">
+                                <div class="activity-main">
+                                    <strong>${card.name}</strong>
+                                    <span class="activity-set">${card.set_name || 'Unknown Set'}</span>
+                                </div>
+                                <div class="activity-meta">
+                                    <span class="activity-method">${card.added_method || 'Unknown'}</span>
+                                    <span class="activity-date">${formatDateTime(card.first_seen)}</span>
+                                </div>
+                            </div>
+                        `).join('') : '<div class="activity-item">No recent cards</div>'}
+                    </div>
+                </div>
+                
+                <div class="activity-subsection">
+                    <h4>Recent Scans</h4>
+                    <div class="activity-list">
+                        ${recent_activity.recent_scans.length > 0 ? recent_activity.recent_scans.map(scan => `
+                            <div class="activity-item">
+                                <div class="activity-main">
+                                    <strong>Scan #${scan.scan_id}</strong>
+                                    <span class="activity-status status-${scan.status.toLowerCase()}">${scan.status}</span>
+                                </div>
+                                <div class="activity-meta">
+                                    <span class="activity-cards">${scan.total_cards_found || 0} cards found</span>
+                                    <span class="activity-date">${formatDateTime(scan.created_at)}</span>
+                                </div>
+                            </div>
+                        `).join('') : '<div class="activity-item">No recent scans</div>'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 // Load statistics
 async function loadStats() {
     try {

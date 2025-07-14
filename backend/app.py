@@ -145,6 +145,128 @@ async def get_environment():
         "railway_url": RAILWAY_URL if USE_RAILWAY_FILES else None
     }
 
+@app.get("/api/database/status")
+async def get_database_status():
+    """Get comprehensive database and storage status information"""
+    try:
+        db = next(get_db())
+        
+        # Database type detection
+        cloud_database_url = os.getenv("DATABASE_URL")
+        if cloud_database_url:
+            if cloud_database_url and cloud_database_url.startswith("postgresql://"):
+                db_type = "PostgreSQL (Railway)"
+                db_location = "Cloud"
+            else:
+                db_type = "Other Cloud Database"
+                db_location = "Cloud"
+        else:
+            db_type = "SQLite"
+            db_location = "Local"
+            
+        # Get database statistics
+        total_cards = db.query(Card).filter(Card.deleted == False).count()
+        total_scans = db.query(Scan).count()
+        total_card_entries = db.query(Card).filter(Card.deleted == False).with_entities(func.sum(Card.count)).scalar() or 0
+        
+        # Get recent activity
+        recent_cards = db.query(Card).filter(Card.deleted == False).order_by(Card.first_seen.desc()).limit(5).all()
+        recent_scans = db.query(Scan).order_by(Scan.created_at.desc()).limit(3).all()
+        
+        # File storage information
+        uploads_dir = UPLOADS_DIR
+        storage_type = "Railway Volume" if USE_RAILWAY_FILES else "Local Filesystem"
+        
+        # Calculate storage usage
+        total_files = 0
+        total_size = 0
+        if os.path.exists(uploads_dir):
+            for root, dirs, files in os.walk(uploads_dir):
+                for file in files:
+                    if file.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
+                        file_path = os.path.join(root, file)
+                        try:
+                            file_size = os.path.getsize(file_path)
+                            total_files += 1
+                            total_size += file_size
+                        except:
+                            pass
+        
+        # Database file size (for SQLite)
+        db_file_size = 0
+        if db_type == "SQLite":
+            db_file_path = "magic_cards.db"
+            if os.path.exists(db_file_path):
+                db_file_size = os.path.getsize(db_file_path)
+        
+        # Format sizes
+        def format_size(bytes):
+            for unit in ['B', 'KB', 'MB', 'GB']:
+                if bytes < 1024.0:
+                    return f"{bytes:.1f} {unit}"
+                bytes /= 1024.0
+            return f"{bytes:.1f} TB"
+        
+        return {
+            "database": {
+                "type": db_type,
+                "location": db_location,
+                "url": cloud_database_url[:50] + "..." if cloud_database_url and len(cloud_database_url) > 50 else cloud_database_url,
+                "file_size": format_size(db_file_size) if db_type == "SQLite" else "N/A (Cloud)",
+                "is_cloud": bool(cloud_database_url)
+            },
+            "storage": {
+                "type": storage_type,
+                "path": uploads_dir,
+                "total_files": total_files,
+                "total_size": format_size(total_size),
+                "uses_railway_files": USE_RAILWAY_FILES,
+                "railway_url": RAILWAY_URL if USE_RAILWAY_FILES else None
+            },
+            "statistics": {
+                "total_cards": total_cards,
+                "total_scans": total_scans,
+                "total_card_entries": total_card_entries,
+                "cards_per_scan": round(total_card_entries / total_scans, 2) if total_scans > 0 else 0
+            },
+            "recent_activity": {
+                "recent_cards": [
+                    {
+                        "name": card.name,
+                        "set_name": card.set_name,
+                        "first_seen": card.first_seen.isoformat() if card.first_seen is not None else None,
+                        "added_method": card.added_method
+                    }
+                    for card in recent_cards
+                ],
+                "recent_scans": [
+                    {
+                        "scan_id": scan.id,
+                        "created_at": scan.created_at.isoformat() if scan.created_at is not None else None,
+                        "status": scan.status,
+                        "total_cards_found": scan.total_cards_found
+                    }
+                    for scan in recent_scans
+                ]
+            },
+            "environment": {
+                "env_mode": os.getenv("ENV_MODE", "production"),
+                "port": int(os.getenv("PORT", 8000)),
+                "railway_environment": os.getenv("RAILWAY_ENVIRONMENT"),
+                "openai_configured": bool(os.getenv("OPENAI_API_KEY"))
+            }
+        }
+    except Exception as e:
+        logger.error(f"Database status error: {str(e)}")
+        return {
+            "error": str(e),
+            "database": {"type": "Unknown", "location": "Unknown"},
+            "storage": {"type": "Unknown", "path": "Unknown"},
+            "statistics": {"total_cards": 0, "total_scans": 0},
+            "recent_activity": {"recent_cards": [], "recent_scans": []},
+            "environment": {}
+        }
+
 # File proxy endpoint for Railway files
 @app.get("/uploads/{filename}")
 async def proxy_upload_file(filename: str):
