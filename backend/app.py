@@ -14,6 +14,10 @@ import subprocess
 import sys
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from backend.database import get_db, init_db, Card, Scan, ScanImage, ScanResult
 from backend.ai_processor import CardRecognitionAI
@@ -45,11 +49,13 @@ def get_condition_adjusted_price(base_price: float, condition: str) -> float:
 # Railway Volume Support - Add after imports
 def get_uploads_path():
     """Get uploads directory path - Railway Volume or local"""
-    if os.getenv("RAILWAY_ENVIRONMENT"):
-        # Railway deployment - use mounted volume
+    # Check if we're actually running ON Railway (not just connecting to Railway)
+    # Railway deployment sets RAILWAY_STATIC_URL or has /app directory
+    if os.path.exists("/app") and os.getenv("RAILWAY_STATIC_URL"):
+        # Actually running on Railway - use mounted volume
         uploads_path = "/app/uploads"
     else:
-        # Local development - use relative path (but may proxy to Railway)
+        # Local development (even if connecting to Railway DB) - use relative path
         uploads_path = "uploads"
     
     # Ensure directory exists
