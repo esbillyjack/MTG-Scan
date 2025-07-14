@@ -1668,12 +1668,20 @@ async def debug_export_script():
         with open("export_local.py", "r") as f:
             content = f.read()
         
+        # Find the SQL query in the content
+        sql_start = content.find("SELECT")
+        sql_end = content.find('"""', sql_start)
+        sql_query = content[sql_start:sql_end] if sql_start != -1 and sql_end != -1 else "SQL query not found"
+        
         return {
             "success": True,
-            "script_content": content[:1000],  # First 1000 chars
+            "sql_query": sql_query,
             "has_database_url_check": "DATABASE_URL" in content,
             "has_postgresql_import": "psycopg2" in content,
-            "has_sqlalchemy_import": "sqlalchemy" in content
+            "has_sqlalchemy_import": "sqlalchemy" in content,
+            "script_length": len(content),
+            "has_false_deleted": "deleted = false" in content,
+            "has_zero_deleted": "deleted = 0" in content
         }
     except Exception as e:
         return {
