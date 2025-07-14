@@ -1127,7 +1127,7 @@ async def reject_scan_results(scan_id: int, request_data: dict, db: Session = De
 
 @app.post("/scan/{scan_id}/commit")
 async def commit_scan(scan_id: int, db: Session = Depends(get_db)):
-    """Finalize scan by creating cards from accepted results"""
+    """Finalize scan by creating cards from accepted results or implementing zero-card policy"""
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
@@ -1138,8 +1138,52 @@ async def commit_scan(scan_id: int, db: Session = Depends(get_db)):
         ScanResult.status == "ACCEPTED"
     ).all()
     
+    # ZERO-CARD POLICY: If no accepted results, clean up images and preserve scan record
     if not accepted_results:
-        raise HTTPException(status_code=400, detail="No accepted results to commit")
+        logger.info(f"🗑️ ZERO-CARD POLICY: Implementing cleanup for scan {scan_id} with 0 cards")
+        
+        # Get all scan images for this scan
+        scan_images = db.query(ScanImage).filter(ScanImage.scan_id == scan_id).all()
+        
+        # Delete physical image files from uploads directory
+        deleted_files = 0
+        for scan_image in scan_images:
+            try:
+                if scan_image.file_path and os.path.exists(scan_image.file_path):
+                    os.remove(scan_image.file_path)
+                    deleted_files += 1
+                    logger.info(f"🗑️ Deleted image file: {scan_image.file_path}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to delete image file {scan_image.file_path}: {e}")
+        
+        # Delete ScanImage records from database
+        for scan_image in scan_images:
+            db.delete(scan_image)
+        
+        # Delete any ScanResult records (they're orphaned anyway)
+        all_results = db.query(ScanResult).filter(ScanResult.scan_id == scan_id).all()
+        for result in all_results:
+            db.delete(result)
+        
+        # Update scan record for audit trail (keep the scan record!)
+        scan.status = "COMPLETED"
+        scan.updated_at = datetime.utcnow()
+        scan.total_cards_found = 0
+        scan.notes = f"Zero-card policy applied: {deleted_files} image files deleted, no cards stored"
+        
+        db.commit()
+        
+        logger.info(f"✅ ZERO-CARD POLICY: Scan {scan_id} completed with cleanup - {deleted_files} files deleted")
+        
+        return {
+            "success": True,
+            "scan_id": scan_id,
+            "status": "COMPLETED",
+            "cards_created": 0,
+            "policy_applied": "zero_card_cleanup",
+            "files_deleted": deleted_files,
+            "message": "Scan completed with 0 cards - images removed per storage policy"
+        }
     
     created_cards = 0
     for result in accepted_results:
@@ -1690,6 +1734,12 @@ async def get_scan_policies():
             "image_quality_checks": {
                 "enabled": True,
                 "description": "Images are validated for resolution, focus, and quality before processing"
+            },
+            "zero_card_policy": {
+                "enabled": True,
+                "description": "Scans that result in 0 cards have their images automatically deleted to save storage space",
+                "implementation": "Image files are removed from server, scan record preserved for audit trail",
+                "benefit": "Prevents storage waste from unsuccessful scan attempts"
             }
         },
         "confidence_factors": [
