@@ -203,4 +203,6 @@ Magic_Card_Collection_*
 
 # Test results
 test_results_*.json
-*_consistency_results_*.json 
+*_consistency_results_*.json API_KEY_BACKUP.md
+
+API_KEY_BACKUP.md
