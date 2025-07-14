@@ -11,6 +11,12 @@ cd "$(dirname "$0")"
 # Activate virtual environment
 source venv/bin/activate
 
+# Load environment variables from .env file
+if [ -f .env ]; then
+    echo "📄 Loading environment variables from .env file..."
+    source .env
+fi
+
 # Set environment variables for development
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 export PORT=8001
@@ -20,7 +26,7 @@ export ENV_MODE="development"
 mkdir -p logs
 
 # Start development server with nohup to persist through sleep/lock
-nohup env ENV_MODE=development PORT=8001 PYTHONPATH="${PYTHONPATH}:$(pwd)/backend" venv/bin/python backend/app.py > logs/server_dev.log 2>&1 &
+nohup env ENV_MODE=development PORT=8001 PYTHONPATH="${PYTHONPATH}:$(pwd)/backend" DATABASE_URL_DEV="$DATABASE_URL_DEV" venv/bin/python backend/app.py > logs/server_dev.log 2>&1 &
 
 # Get the process ID
 SERVER_PID=$!
