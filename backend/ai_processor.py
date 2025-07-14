@@ -54,11 +54,11 @@ class CardRecognitionAI:
         
         # Check for quota/rate limit errors
         is_quota_error = any(keyword in error_str.lower() for keyword in [
-            'quota', 'exceeded', 'limit', 'insufficient', 'billing'
+            'quota', 'limit', 'billing', 'exceeded'
         ])
         
         is_rate_limit = any(keyword in error_str.lower() for keyword in [
-            'rate limit', 'too many requests', 'rate_limit_exceeded'
+            'rate limit', 'too many requests'
         ])
         
         # Determine error type
@@ -74,15 +74,23 @@ class CardRecognitionAI:
             error_type = "TIMEOUT"
         else:
             error_type = "UNKNOWN"
-            
+        
         api_error = APIError(error_type, error_str, is_quota_error, is_rate_limit)
         
-        # Log with appropriate level
-        if is_quota_error or is_rate_limit:
-            logger.error(f"API {error_type} in {context}: {error_str}")
-        else:
-            logger.warning(f"API {error_type} in {context}: {error_str}")
-            
+        # Enhanced logging with more visibility
+        logger.error("=" * 80)
+        logger.error(f"🚨 AI SERVICE FAILURE - {error_type} 🚨")
+        logger.error(f"Context: {context}")
+        logger.error(f"Error: {error_str}")
+        logger.error(f"Time: {datetime.utcnow().isoformat()}")
+        if is_quota_error:
+            logger.error("💰 QUOTA ISSUE - Check your OpenAI billing!")
+        elif is_rate_limit:
+            logger.error("⏰ RATE LIMIT - API calls too frequent!")
+        elif error_type == "INVALID_REQUEST":
+            logger.error("🔑 AUTHENTICATION ISSUE - Check your API key!")
+        logger.error("=" * 80)
+        
         return api_error
     
     def _rate_limit_delay(self):
@@ -103,7 +111,10 @@ class CardRecognitionAI:
     def identify_cards(self, image_path: str) -> List[Dict[str, Any]]:
         """Identify Magic cards in an image using AI vision - single attempt, no retries"""
         try:
-            logger.info(f"Making OpenAI API call for image: {image_path}")
+            logger.info("=" * 80)
+            logger.info(f"🎯 STARTING AI CARD IDENTIFICATION")
+            logger.info(f"📁 Processing image: {image_path}")
+            logger.info(f"⏰ Timestamp: {datetime.utcnow().isoformat()}")
             
             # Apply rate limiting
             self._rate_limit_delay()
@@ -157,6 +168,9 @@ This is for personal inventory management of my own card collection. Please iden
 If you cannot identify any cards clearly, return an empty array [].
 """
             
+            logger.info(f"🤖 Making OpenAI API call (model: gpt-4o)")
+            logger.info(f"📊 Image size: {len(base64_image)} base64 characters")
+            
             # Make the API call
             response = self.client.chat.completions.create(
                 model="gpt-4o",  # Use latest stable model
@@ -181,14 +195,15 @@ If you cannot identify any cards clearly, return an empty array [].
             
             # Parse the response
             content = response.choices[0].message.content
-            logger.info(f"OpenAI API response received, content length: {len(content) if content else 0}")
+            logger.info(f"✅ OpenAI API SUCCESS - Response received")
+            logger.info(f"📝 Content length: {len(content) if content else 0} characters")
             
             # Store the raw response for debugging
             self.last_raw_response = content
             
             # Log the actual response content for debugging
             if content:
-                logger.info(f"AI Response Content: {content[:500]}{'...' if len(content) > 500 else ''}")
+                logger.info(f"📋 AI Response Preview: {content[:500]}{'...' if len(content) > 500 else ''}")
             
             # Try to extract JSON from the response
             if content:
@@ -196,19 +211,23 @@ If you cannot identify any cards clearly, return an empty array [].
                 if json_match:
                     try:
                         json_content = json_match.group()
-                        logger.info(f"Extracted JSON: {json_content[:200]}{'...' if len(json_content) > 200 else ''}")
+                        logger.info(f"📋 Extracted JSON: {json_content[:200]}{'...' if len(json_content) > 200 else ''}")
                         cards = json.loads(json_content)
-                        logger.info(f"Successfully parsed {len(cards)} cards from AI response")
+                        logger.info(f"🎉 AI IDENTIFICATION SUCCESS - Found {len(cards)} cards")
+                        for i, card in enumerate(cards):
+                            logger.info(f"  Card {i+1}: {card.get('name', 'Unknown')} (confidence: {card.get('confidence', 'unknown')})")
+                        logger.info("=" * 80)
                         return cards
                     except json.JSONDecodeError as e:
-                        logger.error(f"JSON parsing failed: {e}")
+                        logger.error("🚨 JSON PARSING FAILED 🚨")
+                        logger.error(f"Error: {e}")
                         logger.error(f"Failed JSON content: {json_content}")
                 else:
-                    logger.warning("No JSON array found in AI response")
+                    logger.warning("⚠️  NO JSON ARRAY FOUND in AI response")
                     logger.warning(f"Response content: {content}")
                 
                 # Fallback: try to extract card names from text
-                logger.info("Attempting fallback text parsing")
+                logger.info("🔄 ATTEMPTING FALLBACK TEXT PARSING")
                 cards = []
                 lines = content.split('\n')
                 for line in lines:
@@ -229,14 +248,18 @@ If you cannot identify any cards clearly, return an empty array [].
                                 "notes": "Extracted from text response"
                             })
                 
-                logger.info(f"Fallback parsing extracted {len(cards)} cards")
-                if len(cards) == 0:
-                    logger.warning("Fallback parsing failed to extract any cards")
+                if len(cards) > 0:
+                    logger.info(f"🎉 FALLBACK SUCCESS - Extracted {len(cards)} cards")
+                    logger.info("=" * 80)
+                else:
+                    logger.warning("🚨 FALLBACK FAILED - No cards extracted")
                     newline = '\n'
                     logger.warning(f"Content lines analyzed: {[line.strip() for line in content.split(newline) if line.strip()]}")
+                    logger.warning("=" * 80)
                 return cards
             
-            logger.warning("No content in AI response")
+            logger.warning("🚨 NO CONTENT in AI response")
+            logger.warning("=" * 80)
             return []
             
         except Exception as e:
@@ -246,6 +269,8 @@ If you cannot identify any cards clearly, return an empty array [].
             if hasattr(self, '_last_error'):
                 self._last_error = api_error
             
+            logger.error("🚨 AI IDENTIFICATION FAILED - Returning empty result")
+            logger.error("=" * 80)
             return []
     
     def get_last_error(self) -> Optional[APIError]:

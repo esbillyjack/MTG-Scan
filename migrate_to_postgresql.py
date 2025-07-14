@@ -15,8 +15,8 @@ from backend.database import Base, Card, Scan, ScanImage, ScanResult
 def get_database_engines():
     """Get both SQLite and PostgreSQL database engines"""
     
-    # SQLite (source)
-    sqlite_path = "magic_cards.db"
+    # SQLite (source) - use development database
+    sqlite_path = "magic_cards_dev.db"
     if not os.path.exists(sqlite_path):
         print(f"❌ SQLite database not found: {sqlite_path}")
         return None, None
