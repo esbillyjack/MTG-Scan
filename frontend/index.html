@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Magic Card Scanner</title>
-    <link rel="stylesheet" href="/static/styles.css?v=2025011305">
+    <link rel="stylesheet" href="/static/styles.css?v=2025011306">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -250,15 +250,8 @@
                                 <option value="excel">Excel</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="exportFilePath">File Path:</label>
-                            <div class="file-input-group">
-                                <input type="text" id="exportFilePath" placeholder="e.g., /Users/username/Downloads/magic_cards.csv" value="">
-                                <button type="button" class="btn btn-outline" onclick="browseForFile()">
-                                    <i class="fas fa-folder-open"></i> Browse
-                                </button>
-                            </div>
-                            <small>Enter the full path where you want to save the file, or click Browse to select location</small>
+                        <div class="export-info">
+                            <p><i class="fas fa-info-circle"></i> Your collection will be downloaded directly to your computer's Downloads folder.</p>
                         </div>
                         <div class="export-actions">
                             <button class="btn btn-primary" onclick="startExport()">
@@ -327,6 +320,6 @@
         </div>
     </div>
 
-    <script src="/static/script.js?v=2025011305"></script>
+    <script src="/static/script.js?v=2025011306"></script>
 </body>
 </html> 

@@ -4699,13 +4699,7 @@ async function startExport() {
     const exportProgressFill = document.getElementById('exportProgressFill');
     const exportProgressText = document.getElementById('exportProgressText');
     
-    const filePath = document.getElementById('exportFilePath').value.trim();
     const format = document.getElementById('exportFormat').value;
-    
-    if (!filePath) {
-        alert('Please specify a file path');
-        return;
-    }
     
     // Show progress
     exportForm.style.display = 'none';
@@ -4716,77 +4710,67 @@ async function startExport() {
         exportProgressFill.style.width = '20%';
         exportProgressText.textContent = 'Preparing export...';
         
-        // First attempt without overwrite
-        let response = await fetch('/export/local', {
+        // Use new download endpoint
+        const response = await fetch('/export/download', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                file_path: filePath,
-                format: format,
-                overwrite: false
+                format: format
             })
         });
         
-        let data = await response.json();
-        
-        // If file exists, ask for confirmation
-        if (!data.success && data.file_exists) {
-            const confirmOverwrite = confirm(`File already exists: ${filePath}\n\nDo you want to overwrite it?`);
-            if (confirmOverwrite) {
-                // Retry with overwrite = true
-                response = await fetch('/export/local', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        file_path: filePath,
-                        format: format,
-                        overwrite: true
-                    })
-                });
-                data = await response.json();
-            } else {
-                // User cancelled, reset form
-                exportForm.style.display = 'block';
-                exportProgress.style.display = 'none';
-                return;
-            }
-        }
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Export failed');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Export failed');
         }
         
         exportProgressFill.style.width = '50%';
-        exportProgressText.textContent = 'Exporting files...';
+        exportProgressText.textContent = 'Downloading file...';
         
-        // Simulate progress completion
+        // Get the filename from response headers
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `magic_cards_export.${format === 'excel' ? 'xlsx' : 'csv'}`;
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename=([^;]+)/);
+            if (match) {
+                filename = match[1].replace(/"/g, '');
+            }
+        }
+        
+        // Convert response to blob and trigger download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        exportProgressFill.style.width = '100%';
+        exportProgressText.textContent = 'Export completed!';
+        
+        // Close modal after short delay
         setTimeout(() => {
-            exportProgressFill.style.width = '100%';
-            exportProgressText.textContent = 'Export completed!';
+            closeExportModal();
             
-            // Close modal after short delay
+            // Show success message
+            const notification = document.createElement('div');
+            notification.className = 'notification success';
+            notification.innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                <span>Export completed successfully!<br><small>File: ${filename} downloaded</small></span>
+            `;
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
             setTimeout(() => {
-                closeExportModal();
-                
-                // Show success message with file info
-                const notification = document.createElement('div');
-                notification.className = 'notification success';
-                notification.innerHTML = `
-                    <i class="fas fa-check-circle"></i>
-                    <span>Export completed successfully!<br><small>File: ${data.filename} (${data.record_count} records)</small></span>
-                `;
-                document.body.appendChild(notification);
-                
-                // Remove notification after 5 seconds
-                setTimeout(() => {
-                    notification.remove();
-                }, 5000);
-            }, 1000);
-        }, 500);
+                notification.remove();
+            }, 5000);
+        }, 1000);
         
     } catch (error) {
         console.error('Export error:', error);

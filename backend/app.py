@@ -669,6 +669,100 @@ async def export_to_local(request_data: dict = None, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/export/download")
+async def export_download(request_data: dict = None, db: Session = Depends(get_db)):
+    """Export and download card database directly to browser"""
+    try:
+        from fastapi.responses import StreamingResponse
+        import io
+        
+        # Get parameters
+        file_format = request_data.get('format', 'csv') if request_data else 'csv'
+        
+        # Get cards from database
+        cards = db.query(Card).filter(Card.deleted == False).order_by(Card.name, Card.set_code).all()
+        
+        if not cards:
+            raise HTTPException(status_code=404, detail="No cards found in database")
+        
+        # Convert to pandas DataFrame
+        import pandas as pd
+        
+        data = []
+        for card in cards:
+            data.append({
+                'Card Name': card.name,
+                'Set Code': card.set_code or '',
+                'Set Name': card.set_name or '',
+                'Collector Number': card.collector_number or '',
+                'Rarity': card.rarity or '',
+                'Condition': card.condition or '',
+                'Price (USD)': f"${card.price_usd:.2f}" if card.price_usd else "",
+                'Mana Cost': card.mana_cost or '',
+                'Type Line': card.type_line or '',
+                'Oracle Text': card.oracle_text or '',
+                'Count': card.count,
+                'Notes': card.notes or '',
+                'First Seen': card.first_seen.isoformat() if card.first_seen else '',
+                'Last Seen': card.last_seen.isoformat() if card.last_seen else '',
+                'Added Method': card.added_method or 'LEGACY'
+            })
+        
+        df = pd.DataFrame(data)
+        
+        # Create file in memory
+        output = io.StringIO()
+        
+        if file_format.lower() == 'excel':
+            # For Excel, we need BytesIO
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Cards', index=False)
+                
+                # Format the Excel file
+                workbook = writer.book
+                worksheet = writer.sheets['Cards']
+                
+                from openpyxl.styles import Font
+                # Make headers bold
+                for cell in worksheet[1]:
+                    cell.font = Font(bold=True)
+                
+                # Auto-adjust column widths
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            output.seek(0)
+            media_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            filename = f"magic_cards_export.xlsx"
+        else:
+            # CSV format
+            df.to_csv(output, index=False)
+            output.seek(0)
+            media_type = 'text/csv'
+            filename = f"magic_cards_export.csv"
+        
+        # Return as download
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode() if file_format != 'excel' else output.getvalue()),
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        logger.error(f"Download export error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # New Scan Management Endpoints
 
 @app.post("/scan/start")
