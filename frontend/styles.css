@@ -1774,6 +1774,14 @@ input:checked + .slider:before {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
+/* Search Tools Group - keeps tools, sort, and search together */
+.search-tools-group {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+}
+
 /* Search Container */
 .search-container {
     flex: 1;
@@ -1808,8 +1816,15 @@ input:checked + .slider:before {
         gap: 15px;
     }
     
+    .search-tools-group {
+        flex-direction: row;
+        gap: 10px;
+        align-items: center;
+    }
+    
     .search-container {
         max-width: none;
+        flex: 1;
     }
     
     .view-toggle {
