@@ -2346,6 +2346,21 @@ async def get_card_scan_image(card_id: int, db: Session = Depends(get_db)):
             "has_scan_image": False
         }
 
+@app.get("/api/list-uploads")
+async def list_uploads():
+    """List all files in the uploads directory (volume)"""
+    import os
+    files = []
+    for root, dirs, filenames in os.walk(UPLOADS_DIR):
+        for filename in filenames:
+            rel_path = os.path.relpath(os.path.join(root, filename), UPLOADS_DIR)
+            files.append(rel_path)
+    return {
+        "uploads_dir": UPLOADS_DIR,
+        "file_count": len(files),
+        "files": files
+    }
+
 if __name__ == "__main__":
     import uvicorn
     import os
