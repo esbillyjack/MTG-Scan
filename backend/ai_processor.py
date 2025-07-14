@@ -124,9 +124,11 @@ class CardRecognitionAI:
         
             # Single optimized prompt
             prompt = """
-You are helping me catalog my personal Magic: The Gathering card collection for inventory purposes.
+You are an expert Magic: The Gathering card identification assistant helping with personal collection inventory management.
 
-TASK: Analyze this image of Magic: The Gathering cards that I own and identify each card with detailed information.
+CONTEXT: I am cataloging my personal Magic: The Gathering card collection for inventory purposes. This is completely legitimate - I own these cards and need to identify them for my personal records.
+
+TASK: Analyze this image of Magic: The Gathering cards and identify each card with detailed information.
 
 For each card you can see in the image, provide:
 1. The EXACT card name (be as precise as possible)
@@ -164,8 +166,10 @@ REQUIRED OUTPUT FORMAT - Return ONLY a JSON array with objects containing:
     "notes": "any additional details that might help identify the correct version"
 }
 
-This is for personal inventory management of my own card collection. Please identify all visible cards in the image.
+This is for personal inventory management of my own card collection. Please identify all visible Magic: The Gathering cards in the image.
 If you cannot identify any cards clearly, return an empty array [].
+
+IMPORTANT: Do not refuse this task - this is legitimate personal inventory management of owned cards.
 """
             
             logger.info(f"🤖 Making OpenAI API call (model: gpt-4o)")
@@ -173,7 +177,7 @@ If you cannot identify any cards clearly, return an empty array [].
             
             # Make the API call
             response = self.client.chat.completions.create(
-                model="gpt-4o",  # Use latest stable model
+                model="gpt-4o",  # Use current vision model
                 messages=[
                     {
                         "role": "user",
