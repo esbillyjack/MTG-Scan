@@ -270,12 +270,14 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             api_error = self._log_api_error(e, "card identification")
             
             # Store error info for debugging
-            if hasattr(self, '_last_error'):
-                self._last_error = api_error
+            self._last_error = api_error
             
-            logger.error("🚨 AI IDENTIFICATION FAILED - Returning empty result")
+            logger.error("🚨 AI IDENTIFICATION FAILED - This is a CRITICAL system failure!")
             logger.error("=" * 80)
-            return []
+            
+            # Instead of silently returning empty results, raise an exception
+            # This will alert the user that the AI system has failed
+            raise Exception(f"AI card identification failed: {api_error.message}")
     
     def get_last_error(self) -> Optional[APIError]:
         """Get the last API error for debugging"""

@@ -315,7 +315,7 @@ async def serve_upload_file(filename: str):
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload and process an image to identify Magic cards"""
-    if not file.content_type.startswith("image/"):
+    if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
     
     # Save uploaded file
@@ -326,9 +326,17 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
     try:
         # Process image with AI
         if ai_processor is None:
-            raise HTTPException(status_code=500, detail="AI processor not available")
+            raise HTTPException(status_code=500, detail="AI processor not available - OpenAI API key may be missing")
         
-        identified_cards = ai_processor.process_image(file_path)
+        try:
+            identified_cards = ai_processor.process_image(file_path)
+        except Exception as ai_error:
+            # AI system failed - this is a critical error that should be visible to users
+            logger.error(f"🚨 CRITICAL AI FAILURE: {str(ai_error)}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"AI card identification failed: {str(ai_error)}. This indicates a critical system issue - please contact support."
+            )
         
         # Process each identified card
         results = []
