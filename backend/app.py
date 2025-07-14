@@ -42,13 +42,30 @@ def get_condition_adjusted_price(base_price: float, condition: str) -> float:
     multiplier = CONDITION_MULTIPLIERS.get(condition, CONDITION_MULTIPLIERS['UNKNOWN'])
     return base_price * multiplier
 
+# Railway Volume Support - Add after imports
+def get_uploads_path():
+    """Get uploads directory path - Railway Volume or local"""
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("DATABASE_URL"):
+        # Railway deployment - use mounted volume
+        uploads_path = "/app/uploads"
+    else:
+        # Local development - use relative path
+        uploads_path = "uploads"
+    
+    # Ensure directory exists
+    os.makedirs(uploads_path, exist_ok=True)
+    return uploads_path
+
+# Update uploads directory reference
+UPLOADS_DIR = get_uploads_path()
+
 # Create uploads directory
-os.makedirs("uploads", exist_ok=True)
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 # Mount uploads directory to serve scan images
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 # Initialize database
 init_db()
@@ -96,7 +113,7 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="File must be an image")
     
     # Save uploaded file
-    file_path = f"uploads/{file.filename}"
+    file_path = f"{UPLOADS_DIR}/{file.filename}"
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
@@ -230,7 +247,7 @@ async def upload_and_scan(files: List[UploadFile] = File(...), db: Session = Dep
             # Generate unique filename
             file_extension = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
             unique_filename = f"scan_{new_scan.id}_{uuid.uuid4()}{file_extension}"
-            file_path = f"uploads/{unique_filename}"
+            file_path = f"{UPLOADS_DIR}/{unique_filename}"
             
             # Save the file
             with open(file_path, "wb") as buffer:
@@ -269,8 +286,8 @@ async def upload_and_scan(files: List[UploadFile] = File(...), db: Session = Dep
         try:
             for img in uploaded_images:
                 try:
-                    if os.path.exists(f"uploads/{img['filename']}"):
-                        os.remove(f"uploads/{img['filename']}")
+                    if os.path.exists(f"{UPLOADS_DIR}/{img['filename']}"):
+                        os.remove(f"{UPLOADS_DIR}/{img['filename']}")
                 except:
                     pass
         except NameError:
@@ -812,7 +829,7 @@ async def upload_scan_images(scan_id: int, files: List[UploadFile] = File(...), 
         # Generate unique filename
         file_extension = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
         unique_filename = f"scan_{scan_id}_{uuid.uuid4()}{file_extension}"
-        file_path = f"uploads/{unique_filename}"
+        file_path = f"{UPLOADS_DIR}/{unique_filename}"
         
         # Save the file
         with open(file_path, "wb") as buffer:
@@ -1652,7 +1669,7 @@ async def validate_image_quality(file: UploadFile = File(...)):
     try:
         # Save uploaded file temporarily
         temp_filename = f"temp_validation_{uuid.uuid4().hex}.jpg"
-        temp_path = os.path.join("uploads", temp_filename)
+        temp_path = os.path.join(UPLOADS_DIR, temp_filename)
         
         with open(temp_path, "wb") as temp_file:
             content = await file.read()

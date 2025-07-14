@@ -12,11 +12,14 @@ restartPolicyMaxRetries = 10
 [environments.production]
 ENV_MODE = "production"
 PORT = "8000"
+RAILWAY_ENVIRONMENT = "production"
 
 [environments.development]
 ENV_MODE = "development"
 PORT = "8000"
+RAILWAY_ENVIRONMENT = "development"
 
 [environments.staging]
 ENV_MODE = "staging"
-PORT = "8000" 
+PORT = "8000"
+RAILWAY_ENVIRONMENT = "staging" 
