@@ -406,7 +406,7 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
                 })
         
         # Clean up uploaded file
-        os.remove(file_path)
+        # os.remove(file_path)
         
         return {
             "success": True,
