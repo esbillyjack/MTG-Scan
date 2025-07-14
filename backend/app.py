@@ -202,23 +202,30 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
 @app.post("/upload/scan")
 async def upload_and_scan(files: List[UploadFile] = File(...), db: Session = Depends(get_db)):
     """Upload files and create a scan session for the new workflow"""
+    logger.info(f"📁 DEBUG: upload_and_scan called with {len(files)} files")
+    
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     
     # Validate that at least one file is an image
     valid_files = [f for f in files if f.content_type is not None and f.content_type.startswith("image/")]
+    logger.info(f"📁 DEBUG: {len(valid_files)} valid image files found")
+    
     if not valid_files:
         raise HTTPException(status_code=400, detail="No valid image files provided")
     
     try:
         # Step 1: Create a new scan session
+        logger.info("📁 DEBUG: Creating new scan session")
         new_scan = Scan(status="PENDING", notes="Scan initiated from upload")
         db.add(new_scan)
         db.commit()
         db.refresh(new_scan)
+        logger.info(f"📁 DEBUG: Created scan {new_scan.id}")
         
         # Step 2: Upload files to the scan
         uploaded_images = []
+        logger.info("📁 DEBUG: Starting file uploads")
         for file in valid_files:
             # Generate unique filename
             file_extension = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
@@ -259,12 +266,16 @@ async def upload_and_scan(files: List[UploadFile] = File(...), db: Session = Dep
         
     except Exception as e:
         # Clean up any uploaded files on error
-        for img in uploaded_images:
-            try:
-                if os.path.exists(f"uploads/{img['filename']}"):
-                    os.remove(f"uploads/{img['filename']}")
-            except:
-                pass
+        try:
+            for img in uploaded_images:
+                try:
+                    if os.path.exists(f"uploads/{img['filename']}"):
+                        os.remove(f"uploads/{img['filename']}")
+                except:
+                    pass
+        except NameError:
+            # uploaded_images not initialized yet, nothing to clean up
+            pass
         raise HTTPException(status_code=500, detail=f"Error creating scan: {str(e)}")
 
 
@@ -1335,7 +1346,7 @@ async def get_scan_details(scan_id: int, db: Session = Depends(get_db)):
         for img in scan_images:
             images.append({
                 "filename": img.filename,
-                "url": f"/{img.filename}"
+                "url": f"/uploads/{img.filename}"
             })
         
         # Get cards from this scan

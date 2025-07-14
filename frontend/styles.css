@@ -2677,7 +2677,7 @@ input:checked + .slider:before {
 
 /* Card Review Interface */
 .scan-review-header {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     text-align: center;
 }
 
@@ -2947,6 +2947,46 @@ input:checked + .slider:before {
 
 .scan-secondary-btn:hover {
     background: #5a6268;
+}
+
+.scan-accept-all-btn {
+    background: #48bb78;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.scan-accept-all-btn:hover {
+    background: #38a169;
+    transform: translateY(-2px);
+}
+
+.scan-reject-all-btn {
+    background: #f56565;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.scan-reject-all-btn:hover {
+    background: #e53e3e;
+    transform: translateY(-2px);
 }
 
 .scan-summary {
@@ -4152,6 +4192,10 @@ input:checked + .slider:before {
 }
 
 /* AI Response Modal Styles */
+.ai-response-modal {
+    z-index: 2100; /* Higher than scanning modal (2000) */
+}
+
 .ai-response-modal .modal-content {
     max-width: 800px;
     max-height: 90vh;
@@ -4589,3 +4633,4 @@ input:checked + .slider:before {
     transition: width 0.3s ease;
     width: 0%;
 }
+

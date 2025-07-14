@@ -366,23 +366,36 @@ async function processFiles(files) {
     
     try {
         console.log('📁 DEBUG: Starting uploadAndScan...');
+        // Show immediate upload progress
+        showUploadProgress();
+        updateProgress(10, `Uploading ${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''}...`);
+        
         // Start the new scan workflow
         const scanResult = await uploadAndScan(imageFiles);
         
         if (scanResult.success) {
             console.log('📁 DEBUG: Scan created successfully:', scanResult);
+            updateProgress(100, 'Upload complete! Starting scan...');
+            
+            // Brief delay to show completion, then hide progress
+            setTimeout(() => {
+                hideUploadProgress();
+            }, 800);
+            
             // Reset file input after successful scan creation
             resetFileInput();
             // Open scanning modal and start the workflow (non-blocking)
             await showScanningModal(scanResult.scan_id, imageFiles);
         } else {
             console.log('📁 DEBUG: Scan creation failed:', scanResult.error);
+            hideUploadProgress();
             alert(`Error starting scan: ${scanResult.error}`);
             resetFileInput();
         }
         
     } catch (error) {
         console.error('📁 DEBUG: Error in processFiles:', error);
+        hideUploadProgress();
         alert('Error starting scan. Please try again.');
         resetFileInput();
     }
@@ -398,10 +411,14 @@ async function uploadAndScan(files) {
     });
     
     try {
+        updateProgress(30, 'Sending files to server...');
+        
         const response = await fetch('/upload/scan', {
             method: 'POST',
             body: formData
         });
+        
+        updateProgress(60, 'Processing upload...');
         
         if (!response.ok) {
             let errorMessage = 'Failed to upload files';
@@ -415,7 +432,7 @@ async function uploadAndScan(files) {
                 try {
                     // If JSON parsing fails, try to read as text using clone
                     const errorText = await responseClone.text();
-                    errorMessage = errorText || errorMessage;
+                errorMessage = errorText || errorMessage;
                 } catch (textError) {
                     // If both JSON and text parsing fail, use the original error message
                     errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -2070,11 +2087,17 @@ async function startScanProcessingWithRetry(scanId, maxRetries = 3) {
             if (!response.ok) {
                 let errorMessage = 'Failed to start processing';
                 try {
-                    const errorData = await response.json();
+                    const responseClone = response.clone();
+                    const errorData = await responseClone.json();
                     errorMessage = errorData.detail || errorData.error || errorMessage;
                 } catch (e) {
+                    try {
                     const errorText = await response.text();
                     errorMessage = errorText || errorMessage;
+                    } catch (textError) {
+                        // If both JSON and text parsing fail, use default message
+                        errorMessage = 'Failed to start processing';
+                    }
                 }
                 
                 console.error(`Processing attempt ${attempt} failed:`, response.status, errorMessage);
@@ -2308,16 +2331,6 @@ function showReviewInterface(results) {
             
             <div class="scan-review-header">
                 <h3>Review Identified Cards (${results.length})</h3>
-                <p>Accept or reject each identified card before adding to your collection.</p>
-                
-                <div class="scan-bulk-actions">
-                    <button class="scan-secondary-btn" onclick="acceptAllResults()">
-                        <i class="fas fa-check-circle"></i> Accept All
-                    </button>
-                    <button class="scan-secondary-btn" onclick="rejectAllResults()">
-                        <i class="fas fa-times-circle"></i> Reject All
-                    </button>
-                </div>
             </div>
             
             <div class="scan-results-container">
@@ -2336,8 +2349,11 @@ function showReviewInterface(results) {
                 <button class="scan-secondary-btn" onclick="cancelScan()">
                     <i class="fas fa-times"></i> Cancel
                 </button>
-                <button class="scan-retry-btn" onclick="retryScan()">
-                    <i class="fas fa-redo"></i> Retry
+                <button class="scan-accept-all-btn" onclick="acceptAllResults()">
+                    <i class="fas fa-check-circle"></i> Accept All
+                </button>
+                <button class="scan-reject-all-btn" onclick="rejectAllResults()">
+                    <i class="fas fa-times-circle"></i> Reject All
                 </button>
                 <button class="scan-primary-btn" onclick="commitAcceptedCards()" id="commitButton">
                     <i class="fas fa-plus"></i> Add Accepted to Collection
@@ -2666,12 +2682,10 @@ function createScanResultItem(result) {
             <div class="scan-result-info">
                 <div class="scan-result-name">${result.card_name}</div>
                 ${createSetDisplayForScanResult(result)}
-                <div class="scan-result-confidence">
-                    <span class="confidence-score ${confidenceClass}">
-                        ${Math.round(result.confidence_score)}% confidence
-                    </span>
-                    ${result.requires_review ? '<span class="review-warning">⚠ Needs review</span>' : ''}
-                </div>
+                <span class="confidence-score ${confidenceClass}">
+                    ${Math.round(result.confidence_score)}% confidence
+                </span>
+                ${result.requires_review ? '<span class="review-warning">⚠ Needs review</span>' : ''}
             </div>
             <div class="scan-result-actions">
                 <button class="scan-action-btn accept ${isAccepted ? 'active' : ''}" 
@@ -2685,7 +2699,7 @@ function createScanResultItem(result) {
                     <i class="fas fa-times"></i> ${isRejected ? 'Rejected' : 'Reject'}
                 </button>
                 <button class="scan-action-btn info" 
-                        onclick="showAIResponse(${currentScan.scan_id})" 
+                        onclick="showAIResponse(${currentScan.id})" 
                         title="Show AI Response Details">
                     <i class="fas fa-info-circle"></i> INFO
                 </button>
@@ -3036,7 +3050,6 @@ async function finishScan() {
 
 // Cancel scan
 async function cancelScan() {
-    if (confirm('Are you sure you want to cancel this scan?')) {
         try {
             // Stop any ongoing polling immediately
             if (scanPollingInterval) {
@@ -3078,7 +3091,6 @@ async function cancelScan() {
             console.error('Error cancelling scan:', error);
             // Even if cancellation fails, close the modal
             closeScanningModal();
-        }
     }
 }
 
@@ -3239,14 +3251,16 @@ function showImageComparison(cardName, officialImageUrl, scanImageUrl) {
                 const cursorX = e.clientX - containerRect.left - containerRect.width / 2;
                 const cursorY = e.clientY - containerRect.top - containerRect.height / 2;
                 
-                // Adjust translation to zoom towards cursor
-                const scaleChange = newScale / scale;
-                translateX = translateX * scaleChange + cursorX * (1 - scaleChange) / newScale;
-                translateY = translateY * scaleChange + cursorY * (1 - scaleChange) / newScale;
+                // Calculate new translate to zoom towards cursor
+                const newTranslateX = translateX * (newScale / scale) - cursorX * (newScale / scale - 1);
+                const newTranslateY = translateY * (newScale / scale) - cursorY * (newScale / scale - 1);
                 
                 scale = newScale;
-                applyTransform();
-            });
+                translateX = newTranslateX;
+                translateY = newTranslateY;
+                
+                scanImage.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+            }, { passive: false });
             
             // Pan with mouse drag
             scanImage.addEventListener('mousedown', (e) => {
@@ -3385,14 +3399,16 @@ function showFullScanImage(fileName, imageUrl) {
             const cursorX = e.clientX - containerRect.left - containerRect.width / 2;
             const cursorY = e.clientY - containerRect.top - containerRect.height / 2;
             
-            // Adjust translation to zoom towards cursor
-            const scaleChange = newScale / scale;
-            translateX = translateX * scaleChange + cursorX * (1 - scaleChange) / newScale;
-            translateY = translateY * scaleChange + cursorY * (1 - scaleChange) / newScale;
+            // Calculate new translate to zoom towards cursor
+            const newTranslateX = translateX * (newScale / scale) - cursorX * (newScale / scale - 1);
+            const newTranslateY = translateY * (newScale / scale) - cursorY * (newScale / scale - 1);
             
             scale = newScale;
-            applyTransform();
-        });
+            translateX = newTranslateX;
+            translateY = newTranslateY;
+            
+            scanImage.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+        }, { passive: false });
         
         // Pan with mouse drag
         scanImage.addEventListener('mousedown', (e) => {
@@ -3667,6 +3683,8 @@ function createScanHistoryItem(scan) {
             <img src="/uploads/${image.filename}" 
                  alt="Scan image" 
                  class="scan-thumbnail"
+                 loading="lazy"
+                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNFRUVFRUUiLz48dGV4dCB4PSI1MCIgeT0iNTUiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=='; this.onerror=null; this.alt='Image not available';"
                  onclick="showFullScanImage('${image.filename}', '/uploads/${image.filename}')"
                  title="${image.original_filename}">
         `).join('')
@@ -4905,27 +4923,27 @@ async function startExport() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        exportProgressFill.style.width = '100%';
-        exportProgressText.textContent = 'Export completed!';
-        
-        // Close modal after short delay
-        setTimeout(() => {
-            closeExportModal();
+            exportProgressFill.style.width = '100%';
+            exportProgressText.textContent = 'Export completed!';
             
-            // Show success message
-            const notification = document.createElement('div');
-            notification.className = 'notification success';
-            notification.innerHTML = `
-                <i class="fas fa-check-circle"></i>
-                <span>Export completed successfully!<br><small>File: ${filename} downloaded</small></span>
-            `;
-            document.body.appendChild(notification);
-            
-            // Remove notification after 5 seconds
+            // Close modal after short delay
             setTimeout(() => {
-                notification.remove();
-            }, 5000);
-        }, 1000);
+                closeExportModal();
+                
+            // Show success message
+                const notification = document.createElement('div');
+                notification.className = 'notification success';
+                notification.innerHTML = `
+                    <i class="fas fa-check-circle"></i>
+                <span>Export completed successfully!<br><small>File: ${filename} downloaded</small></span>
+                `;
+                document.body.appendChild(notification);
+                
+                // Remove notification after 5 seconds
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+            }, 1000);
         
     } catch (error) {
         console.error('Export error:', error);
