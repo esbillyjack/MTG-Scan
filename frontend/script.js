@@ -4610,12 +4610,10 @@ async function capturePhoto() {
 function exportCollection() {
     // Show the export modal instead of immediately exporting
     const exportModal = document.getElementById('exportModal');
-    const exportFilePath = document.getElementById('exportFilePath');
     const exportFormat = document.getElementById('exportFormat');
     
-    // Set default values - CSV format and empty path
+    // Set default values - CSV format
     exportFormat.value = 'csv';
-    exportFilePath.value = '';
     
     exportModal.style.display = 'flex';
 }
@@ -4630,68 +4628,7 @@ function closeExportModal() {
     exportProgress.style.display = 'none';
 }
 
-async function browseForFile() {
-    const exportFilePath = document.getElementById('exportFilePath');
-    const format = document.getElementById('exportFormat').value;
-    const extension = format === 'excel' ? 'xlsx' : 'csv';
-    const defaultName = `magic_cards_export.${extension}`;
-    
-    // Check if the File System Access API is available
-    if ('showSaveFilePicker' in window) {
-        try {
-            const fileHandle = await window.showSaveFilePicker({
-                suggestedName: defaultName,
-                types: [{
-                    description: format === 'excel' ? 'Excel files' : 'CSV files',
-                    accept: {
-                        [format === 'excel' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv']: [`.${extension}`]
-                    }
-                }]
-            });
-            
-            // Set the file path (this will be the full path)
-            exportFilePath.value = fileHandle.name;
-            
-            // Store the file handle for later use
-            exportFilePath.dataset.fileHandle = JSON.stringify({
-                name: fileHandle.name,
-                kind: fileHandle.kind
-            });
-            
-        } catch (err) {
-            // User cancelled the dialog
-            console.log('User cancelled file selection');
-        }
-    } else {
-        // Fallback: Use directory picker to select folder
-        const exportBrowseInput = document.getElementById('exportBrowseInput');
-        
-        // Set up the file input change handler
-        exportBrowseInput.onchange = function(e) {
-            const files = e.target.files;
-            if (files.length > 0) {
-                // Get the first file to extract the directory path
-                const file = files[0];
-                const filePath = file.webkitRelativePath;
-                
-                // Extract the directory path (remove the filename)
-                const pathParts = filePath.split('/');
-                pathParts.pop(); // Remove the filename
-                const directoryPath = pathParts.join('/');
-                
-                // Set the export path to the selected directory + default filename
-                const fullPath = directoryPath ? `${directoryPath}/${defaultName}` : defaultName;
-                exportFilePath.value = fullPath;
-            }
-            
-            // Reset the input
-            exportBrowseInput.value = '';
-        };
-        
-        // Trigger the directory picker
-        exportBrowseInput.click();
-    }
-}
+
 
 async function startExport() {
     const exportForm = document.querySelector('.export-form');
