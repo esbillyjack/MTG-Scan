@@ -1661,6 +1661,26 @@ async def get_database_info():
     except Exception as e:
         return {"error": f"Database info failed: {str(e)}"}
 
+@app.get("/debug/export-script")
+async def debug_export_script():
+    """Debug endpoint to show export script content"""
+    try:
+        with open("export_local.py", "r") as f:
+            content = f.read()
+        
+        return {
+            "success": True,
+            "script_content": content[:1000],  # First 1000 chars
+            "has_database_url_check": "DATABASE_URL" in content,
+            "has_postgresql_import": "psycopg2" in content,
+            "has_sqlalchemy_import": "sqlalchemy" in content
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 
 if __name__ == "__main__":
     import uvicorn
