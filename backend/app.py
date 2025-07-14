@@ -15,10 +15,10 @@ import sys
 import json
 from pathlib import Path
 
-from database import get_db, init_db, Card, Scan, ScanImage, ScanResult
-from ai_processor import CardRecognitionAI
-from price_api import ScryfallAPI
-from image_quality_validator import ImageQualityValidator
+from backend.database import get_db, init_db, Card, Scan, ScanImage, ScanResult
+from backend.ai_processor import CardRecognitionAI
+from backend.price_api import ScryfallAPI
+from backend.image_quality_validator import ImageQualityValidator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
