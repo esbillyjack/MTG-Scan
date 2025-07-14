@@ -1410,57 +1410,72 @@ async def update_scan_result_set(result_id: int, set_data: dict, db: Session = D
 
 
 @app.get("/scan/history")
-async def get_scan_history(db: Session = Depends(get_db)):
-    """Get all scan history with images and cards found (excluding cancelled scans)"""
+async def get_scan_history(db: Session = Depends(get_db), limit: int = 50, offset: int = 0):
+    """Get scan history with optimized queries and pagination"""
     try:
-        # Get all scans ordered by newest first, excluding cancelled scans
-        scans = db.query(Scan).filter(Scan.status != "CANCELLED").order_by(Scan.created_at.desc()).all()
+        # Get scans with pagination, excluding cancelled scans
+        scans = db.query(Scan).filter(Scan.status != "CANCELLED").order_by(Scan.created_at.desc()).offset(offset).limit(limit).all()
         
+        if not scans:
+            return {
+                "success": True,
+                "total_scans": 0,
+                "scans": []
+            }
+        
+        scan_ids = [scan.id for scan in scans]
+        
+        # Get all images for these scans in one query
+        scan_images = db.query(ScanImage).filter(ScanImage.scan_id.in_(scan_ids)).all()
+        images_by_scan = {}
+        for image in scan_images:
+            if image.scan_id not in images_by_scan:
+                images_by_scan[image.scan_id] = []
+            images_by_scan[image.scan_id].append({
+                "filename": image.filename,
+                "original_filename": image.original_filename,
+                "file_path": image.file_path
+            })
+        
+        # Get all cards for these scans in one query
+        scan_cards = db.query(Card).filter(Card.scan_id.in_(scan_ids), Card.deleted == False).all()
+        cards_by_scan = {}
+        for card in scan_cards:
+            if card.scan_id not in cards_by_scan:
+                cards_by_scan[card.scan_id] = []
+            cards_by_scan[card.scan_id].append({
+                "name": card.name,
+                "set_name": card.set_name,
+                "set_code": card.set_code,
+                "collector_number": card.collector_number,
+                "rarity": card.rarity,
+                "count": card.count
+            })
+        
+        # Build response
         scan_history = []
         for scan in scans:
-            # Get scan images
-            scan_images = db.query(ScanImage).filter(ScanImage.scan_id == scan.id).all()
-            
-            # Get cards created from this scan
-            scan_cards = db.query(Card).filter(Card.scan_id == scan.id, Card.deleted == False).all()
-            
-            # Format images
-            images = []
-            for image in scan_images:
-                images.append({
-                    "filename": image.filename,
-                    "original_filename": image.original_filename,
-                    "file_path": image.file_path
-                })
-            
-            # Format cards
-            cards = []
-            for card in scan_cards:
-                cards.append({
-                    "name": card.name,
-                    "set_name": card.set_name,
-                    "set_code": card.set_code,
-                    "collector_number": card.collector_number,
-                    "rarity": card.rarity,
-                    "count": card.count
-                })
-            
             scan_data = {
                 "id": scan.id,
                 "status": scan.status,
                 "total_images": scan.total_images,
-                "cards_count": len(cards),
+                "cards_count": len(cards_by_scan.get(scan.id, [])),
                 "created_at": scan.created_at.isoformat() if scan.created_at else None,
                 "updated_at": scan.updated_at.isoformat() if hasattr(scan, 'updated_at') and scan.updated_at else None,
-                "images": images,
-                "cards": cards
+                "images": images_by_scan.get(scan.id, []),
+                "cards": cards_by_scan.get(scan.id, [])
             }
-            
             scan_history.append(scan_data)
+        
+        # Get total count for pagination info
+        total_scans = db.query(Scan).filter(Scan.status != "CANCELLED").count()
         
         return {
             "success": True,
-            "total_scans": len(scan_history),
+            "total_scans": total_scans,
+            "showing": len(scan_history),
+            "offset": offset,
+            "limit": limit,
             "scans": scan_history
         }
         
