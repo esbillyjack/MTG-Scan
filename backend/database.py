@@ -7,29 +7,35 @@ import uuid
 import json
 
 # Database setup
-# Priority: ENV_MODE > DATABASE_URL (Railway/Cloud) > Environment-specific SQLite (Local)
+# Priority: ENV_MODE > Environment-specific DATABASE_URL > Fallback SQLite
 env_mode = os.getenv("ENV_MODE", "production")
-cloud_database_url = os.getenv("DATABASE_URL")
 
 if env_mode == "development":
-    # Development mode - always use local SQLite
-    DATABASE_URL = "sqlite:///./magic_cards_dev.db"
-    print(f"🗄️ Using development database: {DATABASE_URL}")
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-elif cloud_database_url:
-    # Production mode with cloud database
-    if cloud_database_url.startswith('postgresql://') or cloud_database_url.startswith('postgres://'):
-        # PostgreSQL connection - mask sensitive info
-        masked_url = cloud_database_url.split('@')[0] + '@[REDACTED]' if '@' in cloud_database_url else cloud_database_url
-        print(f"🌐 Using cloud database: {masked_url}")
+    # Development mode - use development PostgreSQL or fallback to SQLite
+    dev_database_url = os.getenv("DATABASE_URL_DEV")
+    if dev_database_url:
+        # Development PostgreSQL connection - mask sensitive info
+        masked_url = dev_database_url.split('@')[0] + '@[REDACTED]' if '@' in dev_database_url else dev_database_url
+        print(f"🗄️ Using development PostgreSQL: {masked_url}")
+        engine = create_engine(dev_database_url)
     else:
-        print(f"🌐 Using cloud database: {cloud_database_url}")
-    engine = create_engine(cloud_database_url)
+        # Fallback to local SQLite for development
+        DATABASE_URL = "sqlite:///./magic_cards_dev.db"
+        print(f"🗄️ Using development SQLite: {DATABASE_URL}")
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    # Production mode without cloud database - use local SQLite
-    DATABASE_URL = "sqlite:///./magic_cards.db"
-    print(f"🗄️ Using local production database: {DATABASE_URL}")
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    # Production mode - use production PostgreSQL or fallback to SQLite
+    prod_database_url = os.getenv("DATABASE_URL")
+    if prod_database_url:
+        # Production PostgreSQL connection - mask sensitive info
+        masked_url = prod_database_url.split('@')[0] + '@[REDACTED]' if '@' in prod_database_url else prod_database_url
+        print(f"🌐 Using production PostgreSQL: {masked_url}")
+        engine = create_engine(prod_database_url)
+    else:
+        # Fallback to local SQLite for production
+        DATABASE_URL = "sqlite:///./magic_cards.db"
+        print(f"🗄️ Using production SQLite: {DATABASE_URL}")
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
