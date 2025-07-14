@@ -45,27 +45,64 @@ def get_condition_adjusted_price(base_price: float, condition: str) -> float:
 # Railway Volume Support - Add after imports
 def get_uploads_path():
     """Get uploads directory path - Railway Volume or local"""
-    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("DATABASE_URL"):
+    if os.getenv("RAILWAY_ENVIRONMENT"):
         # Railway deployment - use mounted volume
         uploads_path = "/app/uploads"
     else:
-        # Local development - use relative path
+        # Local development - use relative path (but may proxy to Railway)
         uploads_path = "uploads"
     
     # Ensure directory exists
     os.makedirs(uploads_path, exist_ok=True)
     return uploads_path
 
+def should_use_railway_files():
+    """Check if we should use Railway for file storage"""
+    return os.getenv("USE_RAILWAY_FILES", "false").lower() == "true"
+
+def get_railway_url():
+    """Get Railway app URL for file operations"""
+    return os.getenv("RAILWAY_APP_URL", "")
+
+async def upload_to_railway(local_file_path: str, filename: str):
+    """Upload file to Railway volume"""
+    import requests
+    try:
+        railway_upload_url = f"{RAILWAY_URL}/upload"
+        
+        with open(local_file_path, 'rb') as file:
+            files = {'file': (filename, file, 'image/jpeg')}
+            response = requests.post(railway_upload_url, files=files, timeout=30)
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Uploaded {filename} to Railway volume")
+            return True
+        else:
+            logger.error(f"❌ Failed to upload {filename} to Railway: {response.status_code}")
+            return False
+    except Exception as e:
+        logger.error(f"❌ Error uploading {filename} to Railway: {e}")
+        return False
+
 # Update uploads directory reference
 UPLOADS_DIR = get_uploads_path()
+USE_RAILWAY_FILES = should_use_railway_files()
+RAILWAY_URL = get_railway_url()
 
 # Create uploads directory
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
-# Mount uploads directory to serve scan images
-app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+
+# Conditional uploads mounting based on Railway files setting
+if USE_RAILWAY_FILES and RAILWAY_URL:
+    # Don't mount local uploads - we'll proxy to Railway
+    logger.info(f"🌐 Proxying uploads to Railway: {RAILWAY_URL}")
+else:
+    # Mount uploads directory to serve scan images locally
+    app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+    logger.info(f"📁 Serving uploads locally: {UPLOADS_DIR}")
 
 # Initialize database
 init_db()
@@ -103,8 +140,35 @@ async def get_environment():
     return {
         "environment": env_mode,
         "port": port,
-        "is_development": env_mode == "development"
+        "is_development": env_mode == "development",
+        "uses_railway_files": USE_RAILWAY_FILES,
+        "railway_url": RAILWAY_URL if USE_RAILWAY_FILES else None
     }
+
+# File proxy endpoint for Railway files
+@app.get("/uploads/{filename}")
+async def proxy_upload_file(filename: str):
+    """Proxy upload requests to Railway when using Railway files"""
+    if USE_RAILWAY_FILES and RAILWAY_URL:
+        import requests
+        try:
+            railway_file_url = f"{RAILWAY_URL}/uploads/{filename}"
+            response = requests.get(railway_file_url, timeout=10)
+            
+            if response.status_code == 200:
+                # Return the file content with proper headers
+                from fastapi.responses import Response
+                return Response(
+                    content=response.content,
+                    media_type=response.headers.get('content-type', 'image/jpeg')
+                )
+            else:
+                raise HTTPException(status_code=404, detail="File not found on Railway")
+        except requests.RequestException:
+            raise HTTPException(status_code=503, detail="Railway proxy unavailable")
+    else:
+        # Fallback to local file serving (this shouldn't happen if mounted correctly)
+        raise HTTPException(status_code=404, detail="File not found")
 
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -249,10 +313,14 @@ async def upload_and_scan(files: List[UploadFile] = File(...), db: Session = Dep
             unique_filename = f"scan_{new_scan.id}_{uuid.uuid4()}{file_extension}"
             file_path = f"{UPLOADS_DIR}/{unique_filename}"
             
-            # Save the file
+            # Save the file locally
             with open(file_path, "wb") as buffer:
                 content = await file.read()
                 buffer.write(content)
+            
+            # If using Railway files, also upload to Railway volume
+            if USE_RAILWAY_FILES and RAILWAY_URL:
+                await upload_to_railway(file_path, unique_filename)
             
             # Create scan image record
             scan_image = ScanImage(
