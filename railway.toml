@@ -15,7 +15,7 @@ PORT = "8000"
 
 [environments.development]
 ENV_MODE = "development"
-PORT = "8001"
+PORT = "8000"
 
 [environments.staging]
 ENV_MODE = "staging"
