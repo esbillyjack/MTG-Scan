@@ -1608,6 +1608,59 @@ async def get_scan_ai_response(scan_id: int, db: Session = Depends(get_db)):
         "cards_found": len(db.query(ScanResult).filter(ScanResult.scan_id == scan_id).all())
     }
 
+@app.post("/api/migrate-from-local")
+async def migrate_from_local():
+    """
+    Emergency migration endpoint to migrate data from local database to current Railway database
+    This endpoint can be triggered remotely to populate the Railway database
+    """
+    try:
+        import subprocess
+        import os
+        
+        # Check if we're in a cloud environment
+        if not os.getenv("DATABASE_URL"):
+            return {"error": "This endpoint only works in cloud environments with DATABASE_URL"}
+        
+        # This would need the local database file to be uploaded first
+        # For now, return the current database info
+        from backend.database import engine
+        
+        # Get database connection info
+        db_url = str(engine.url)
+        
+        return {
+            "message": "Migration endpoint ready",
+            "current_database": db_url.split('@')[0] + '@[REDACTED]' if '@' in db_url else db_url,
+            "instructions": "Upload your local database file first, then trigger migration"
+        }
+        
+    except Exception as e:
+        return {"error": f"Migration failed: {str(e)}"}
+
+@app.get("/api/database-info")
+async def get_database_info():
+    """Get current database connection information"""
+    try:
+        from backend.database import engine
+        from sqlalchemy import text
+        
+        db_url = str(engine.url)
+        
+        # Get table counts
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM cards WHERE deleted = false OR deleted IS NULL"))
+            card_count = result.scalar()
+            
+        return {
+            "database_url": db_url.split('@')[0] + '@[REDACTED]' if '@' in db_url else db_url,
+            "card_count": card_count,
+            "database_type": "postgresql" if "postgresql" in db_url else "sqlite"
+        }
+        
+    except Exception as e:
+        return {"error": f"Database info failed: {str(e)}"}
+
 
 if __name__ == "__main__":
     import uvicorn
