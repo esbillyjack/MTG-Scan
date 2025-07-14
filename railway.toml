@@ -3,7 +3,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "python -m uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
+startCommand = "python main.py"
 healthcheckPath = "/api/environment"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
@@ -12,6 +12,10 @@ restartPolicyMaxRetries = 10
 [environments.production]
 ENV_MODE = "production"
 PORT = "8000"
+
+[environments.development]
+ENV_MODE = "development"
+PORT = "8001"
 
 [environments.staging]
 ENV_MODE = "staging"
