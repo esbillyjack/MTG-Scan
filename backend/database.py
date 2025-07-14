@@ -5,6 +5,11 @@ from datetime import datetime
 import os
 import uuid
 import json
+import logging
+from sqlalchemy import text
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Database setup
 # Railway PostgreSQL only - no SQLite fallbacks
@@ -30,8 +35,43 @@ else:
     masked_url = prod_database_url.split('@')[0] + '@[REDACTED]' if '@' in prod_database_url else prod_database_url
     print(f"🌐 Using production PostgreSQL: {masked_url}")
     engine = create_engine(prod_database_url)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+def validate_and_fix_sequences():
+    """Validate and fix PostgreSQL sequences on startup"""
+    try:
+        with engine.connect() as conn:
+            # Define tables and their sequences
+            tables_and_sequences = [
+                ('cards', 'cards_id_seq'),
+                ('scans', 'scans_id_seq'),
+                ('scan_images', 'scan_images_id_seq'),
+                ('scan_results', 'scan_results_id_seq')
+            ]
+            
+            for table_name, sequence_name in tables_and_sequences:
+                try:
+                    # Get max ID from table
+                    result = conn.execute(text(f"SELECT MAX(id) FROM {table_name};"))
+                    max_id = result.scalar() or 0
+                    
+                    # Set sequence to max_id + 1
+                    next_id = max_id + 1
+                    conn.execute(text(f"SELECT setval('{sequence_name}', {next_id}, false);"))
+                    
+                    logger.info(f"✅ Fixed {sequence_name}: set to {next_id}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not fix {sequence_name}: {e}")
+            
+            conn.commit()
+            logger.info("🔧 Database sequences validated and fixed")
+            
+    except Exception as e:
+        logger.error(f"❌ Error validating sequences: {e}")
+
 
 class Card(Base):
     __tablename__ = "cards"
@@ -148,6 +188,9 @@ class ScanResult(Base):
 def init_db():
     """Initialize the database and create tables"""
     Base.metadata.create_all(bind=engine)
+    
+    # Validate and fix sequences on startup
+    validate_and_fix_sequences()
 
 def get_db():
     """Get database session"""
