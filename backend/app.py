@@ -551,21 +551,25 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
                     "id": card.id,  # Use first card's ID for the magnifying glass
                     "condition": card.condition,
                     "notes": card.notes,
+                    "scan_id": getattr(card, 'scan_id', None),  # Add scan_id for magnifying glass
                     "duplicates": []
                 }
             
             grouped_cards[group_key]["stack_count"] += card.count
             grouped_cards[group_key]["total_cards"] += 1
-            grouped_cards[group_key]["duplicates"].append({
+            duplicate_data = {
                 "id": card.id,
                 "count": card.count,
                 "condition": card.condition,
                 "notes": card.notes,
                 "is_example": card.is_example,
                 "added_method": card.added_method or "LEGACY",
+                "scan_id": getattr(card, 'scan_id', None),
                 "first_seen": card.first_seen.isoformat() if card.first_seen else None,
                 "last_seen": card.last_seen.isoformat() if card.last_seen else None
-            })
+            }
+            logger.info(f"🔍 DEBUG: Adding duplicate data for card {card.id} ({card.name}): scan_id={getattr(card, 'scan_id', None)}")
+            grouped_cards[group_key]["duplicates"].append(duplicate_data)
         
         result = {
             "view_mode": "stacked",
@@ -576,7 +580,7 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
         # Debug logging: Print sample card data being sent to frontend
         if grouped_cards:
             sample_card = list(grouped_cards.values())[0]
-            logger.info(f"🎯 FRONTEND DEBUG: Sample stacked card data sent to frontend: name='{sample_card['name']}', set_code='{sample_card['set_code']}', set_name='{sample_card['set_name']}'")
+            logger.info(f"🎯 FRONTEND DEBUG: Sample stacked card data sent to frontend: name='{sample_card['name']}', scan_id='{sample_card.get('scan_id')}', added_method='{sample_card.get('added_method')}'")
         
         return result
     else:

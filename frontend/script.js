@@ -580,7 +580,8 @@ function displayCards() {
                         duplicate_group: card.duplicate_group,
                         first_seen: duplicateData.first_seen,
                         last_seen: duplicateData.last_seen,
-                        added_method: duplicateData.added_method
+                        added_method: duplicateData.added_method,
+                        scan_id: card.scan_id || duplicateData.scan_id
                     };
                     
                     // Create an individual-style filtered array for this single card
@@ -1876,6 +1877,15 @@ function formatManaCost(manaCost) {
 
 // Create enhanced card detail HTML with navigation
 function createEnhancedCardDetailHTML(card, filteredCards) {
+    // DEBUG: Log card data for magnifying glass debugging
+    console.log('🔍 DEBUG: Card data for magnifying glass:', {
+        name: card.name,
+        added_method: card.added_method,
+        scan_id: card.scan_id,
+        id: card.id,
+        condition: card.added_method === 'SCANNED' && card.scan_id && card.id
+    });
+    
     const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'LP';
     const conditionLabel = CONDITION_OPTIONS.find(opt => opt.value === condition)?.label || 'Lightly Played';
     const conditionDisplay = `<span class="read-only-field">${conditionLabel}</span>`;
@@ -1945,6 +1955,7 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
                     <span class="detail-value">
                         ${formatDateTime(card.first_seen)} 
                         <span class="added-method">(${formatAddedMethod(card.added_method)}${card.added_method === 'SCANNED' && card.scan_id && card.id ? `<button class="scan-emoji-btn" onclick="viewCardScanImage(${card.id}, &quot;${card.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}&quot;)" title="View specific scan image that produced this card" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #4fc3f7; padding: 0 2px; border-radius: 50%; vertical-align: middle; margin-left: 2px;">🔍</button>` : ''})</span>
+                        <!-- DEBUG: added_method=${card.added_method}, scan_id=${card.scan_id}, id=${card.id} -->
                     </span>
                 </div>
                 <div class="detail-row">
