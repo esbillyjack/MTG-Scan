@@ -57,36 +57,40 @@ def migrate_data(sqlite_engine, postgres_engine):
     postgres_session = PostgresSession()
     
     try:
-        # Migrate Cards
-        print("📦 Migrating cards...")
-        cards = sqlite_session.query(Card).all()
-        for card in cards:
-            postgres_session.merge(card)
-        print(f"✅ Migrated {len(cards)} cards")
+        # Migrate in correct order to avoid foreign key constraint violations
         
-        # Migrate Scans
+        # 1. Migrate Scans first (no dependencies)
         print("🔍 Migrating scans...")
         scans = sqlite_session.query(Scan).all()
         for scan in scans:
             postgres_session.merge(scan)
+        postgres_session.commit()
         print(f"✅ Migrated {len(scans)} scans")
         
-        # Migrate ScanImages
+        # 2. Migrate ScanImages (depends on Scans)
         print("🖼️ Migrating scan images...")
         scan_images = sqlite_session.query(ScanImage).all()
         for scan_image in scan_images:
             postgres_session.merge(scan_image)
+        postgres_session.commit()
         print(f"✅ Migrated {len(scan_images)} scan images")
         
-        # Migrate ScanResults
+        # 3. Migrate ScanResults (depends on Scans and ScanImages)
         print("📊 Migrating scan results...")
         scan_results = sqlite_session.query(ScanResult).all()
         for scan_result in scan_results:
             postgres_session.merge(scan_result)
+        postgres_session.commit()
         print(f"✅ Migrated {len(scan_results)} scan results")
         
-        # Commit all changes
+        # 4. Migrate Cards last (depends on Scans and ScanResults)
+        print("📦 Migrating cards...")
+        cards = sqlite_session.query(Card).all()
+        for card in cards:
+            postgres_session.merge(card)
         postgres_session.commit()
+        print(f"✅ Migrated {len(cards)} cards")
+        
         print("✅ Data migration completed successfully")
         
     except Exception as e:
