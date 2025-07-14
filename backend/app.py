@@ -502,15 +502,20 @@ async def upload_and_scan(files: List[UploadFile] = File(...), db: Session = Dep
     except Exception as e:
         # Clean up any uploaded files on error
         try:
-            for img in uploaded_images:
-                try:
-                    if os.path.exists(f"{UPLOADS_DIR}/{img['filename']}"):
-                        os.remove(f"{UPLOADS_DIR}/{img['filename']}")
-                except:
-                    pass
-        except NameError:
-            # uploaded_images not initialized yet, nothing to clean up
+            # Check if uploaded_images exists and has content
+            if 'uploaded_images' in locals() and uploaded_images:
+                for img in uploaded_images:
+                    try:
+                        if os.path.exists(f"{UPLOADS_DIR}/{img['filename']}"):
+                            os.remove(f"{UPLOADS_DIR}/{img['filename']}")
+                    except:
+                        pass
+        except:
+            # If cleanup fails, continue - don't let cleanup errors mask the original error
             pass
+        
+        # Log the actual error for debugging
+        logger.error(f"🚨 CRITICAL ERROR in upload_and_scan: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating scan: {str(e)}")
 
 
