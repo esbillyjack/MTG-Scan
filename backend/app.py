@@ -101,14 +101,8 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 # Mount static files
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
-# Conditional uploads mounting based on Railway files setting
-if USE_RAILWAY_FILES and RAILWAY_URL:
-    # Don't mount local uploads - we'll proxy to Railway
-    logger.info(f"🌐 Proxying uploads to Railway: {RAILWAY_URL}")
-else:
-    # Mount uploads directory to serve scan images locally
-    app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
-    logger.info(f"📁 Serving uploads locally: {UPLOADS_DIR}")
+# Smart file serving setup - always use endpoint for fallback capability
+logger.info(f"📁 Using smart file serving - Local: {UPLOADS_DIR}, Railway fallback: {RAILWAY_URL or 'disabled'}")
 
 # Initialize database
 init_db()
@@ -273,30 +267,50 @@ async def get_database_status():
             "environment": {}
         }
 
-# File proxy endpoint for Railway files
+# Smart file serving with Railway fallback
 @app.get("/uploads/{filename}")
-async def proxy_upload_file(filename: str):
-    """Proxy upload requests to Railway when using Railway files"""
-    if USE_RAILWAY_FILES and RAILWAY_URL:
-        import requests
+async def serve_upload_file(filename: str):
+    """Serve files with smart fallback: local first, then Railway if available"""
+    from fastapi.responses import FileResponse, Response
+    import requests
+    
+    # Strategy 1: Try local file first (always)
+    local_file_path = os.path.join(UPLOADS_DIR, filename)
+    if os.path.exists(local_file_path):
+        logger.debug(f"📄 Serving local file: {filename}")
+        return FileResponse(local_file_path)
+    
+    # Strategy 2: Fallback to Railway if available
+    if RAILWAY_URL:
         try:
+            logger.info(f"📥 Local file not found, fetching from Railway: {filename}")
             railway_file_url = f"{RAILWAY_URL}/uploads/{filename}"
-            response = requests.get(railway_file_url, timeout=10)
+            response = requests.get(railway_file_url, timeout=15)
             
             if response.status_code == 200:
-                # Return the file content with proper headers
-                from fastapi.responses import Response
+                # Cache the file locally for future use
+                try:
+                    with open(local_file_path, 'wb') as f:
+                        f.write(response.content)
+                    logger.info(f"✅ Cached file locally: {filename}")
+                except Exception as e:
+                    logger.warning(f"⚠️  Failed to cache file locally: {e}")
+                
+                # Return the file content
                 return Response(
                     content=response.content,
                     media_type=response.headers.get('content-type', 'image/jpeg')
                 )
             else:
+                logger.warning(f"❌ File not found on Railway: {filename} (status: {response.status_code})")
                 raise HTTPException(status_code=404, detail="File not found on Railway")
-        except requests.RequestException:
-            raise HTTPException(status_code=503, detail="Railway proxy unavailable")
-    else:
-        # Fallback to local file serving (this shouldn't happen if mounted correctly)
-        raise HTTPException(status_code=404, detail="File not found")
+        except requests.RequestException as e:
+            logger.error(f"❌ Railway fetch failed for {filename}: {e}")
+            raise HTTPException(status_code=503, detail="Railway fallback unavailable")
+    
+    # Strategy 3: No fallback available
+    logger.warning(f"❌ File not found anywhere: {filename}")
+    raise HTTPException(status_code=404, detail="File not found")
 
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -532,7 +546,11 @@ async def get_cards(db: Session = Depends(get_db), view_mode: str = "individual"
                     "image_url": card.image_url,
                     "duplicate_group": card.duplicate_group,
                     "is_example": card.is_example,
-                "scan_id": getattr(card, 'scan_id', None),
+                    "scan_id": getattr(card, 'scan_id', None),
+                    "added_method": card.added_method or "LEGACY",
+                    "id": card.id,  # Use first card's ID for the magnifying glass
+                    "condition": card.condition,
+                    "notes": card.notes,
                     "duplicates": []
                 }
             
@@ -1670,8 +1688,11 @@ async def update_scan_result_set(result_id: int, set_data: dict, db: Session = D
 async def get_scan_history(db: Session = Depends(get_db), limit: int = 50, offset: int = 0):
     """Get scan history with optimized queries and pagination"""
     try:
-        # Get scans with pagination, excluding cancelled scans
-        scans = db.query(Scan).filter(Scan.status != "CANCELLED").order_by(Scan.created_at.desc()).offset(offset).limit(limit).all()
+        # Get scans with pagination, excluding cancelled scans and 0 card scans
+        scans = db.query(Scan).filter(
+            Scan.status != "CANCELLED",
+            Scan.total_cards_found > 0
+        ).order_by(Scan.created_at.desc()).offset(offset).limit(limit).all()
         
         if not scans:
             return {
@@ -1694,7 +1715,7 @@ async def get_scan_history(db: Session = Depends(get_db), limit: int = 50, offse
                 "file_path": image.file_path
             })
         
-        # Get all cards for these scans in one query
+                # Get all cards for these scans in one query
         scan_cards = db.query(Card).filter(Card.scan_id.in_(scan_ids), Card.deleted == False).all()
         cards_by_scan = {}
         for card in scan_cards:
@@ -1708,24 +1729,40 @@ async def get_scan_history(db: Session = Depends(get_db), limit: int = 50, offse
                 "rarity": card.rarity,
                 "count": card.count
             })
-        
-        # Build response
+
+        # Build response - only include scans that actually have cards
         scan_history = []
+        total_images_count = 0
+        total_cards_count = 0
+        
         for scan in scans:
+            actual_cards = cards_by_scan.get(scan.id, [])
+            
+            # Skip scans with no actual cards (data integrity issue)
+            if not actual_cards:
+                continue
+                
             scan_data = {
                 "id": scan.id,
                 "status": scan.status,
                 "total_images": scan.total_images,
-                "cards_count": len(cards_by_scan.get(scan.id, [])),
+                "cards_count": len(actual_cards),
                 "created_at": scan.created_at.isoformat() if scan.created_at else None,
                 "updated_at": scan.updated_at.isoformat() if hasattr(scan, 'updated_at') and scan.updated_at else None,
                 "images": images_by_scan.get(scan.id, []),
-                "cards": cards_by_scan.get(scan.id, [])
+                "cards": actual_cards
             }
             scan_history.append(scan_data)
+            
+            # Add to totals
+            total_images_count += scan.total_images or 0
+            total_cards_count += len(actual_cards)
         
         # Get total count for pagination info
-        total_scans = db.query(Scan).filter(Scan.status != "CANCELLED").count()
+        total_scans = db.query(Scan).filter(
+            Scan.status != "CANCELLED",
+            Scan.total_cards_found > 0
+        ).count()
         
         return {
             "success": True,
@@ -1733,6 +1770,11 @@ async def get_scan_history(db: Session = Depends(get_db), limit: int = 50, offse
             "showing": len(scan_history),
             "offset": offset,
             "limit": limit,
+            "summary": {
+                "total_images": total_images_count,
+                "total_cards": total_cards_count,
+                "scans_with_cards": len(scan_history)
+            },
             "scans": scan_history
         }
         
@@ -2072,6 +2114,237 @@ async def debug_export_script():
             "error": str(e)
         }
 
+# Card-Scan Association Tool Endpoints
+@app.get("/api/card-scan-tool/card/{card_id}")
+async def get_card_for_scan_tool(card_id: int, db: Session = Depends(get_db)):
+    """Get card details with current scan association for the association tool"""
+    try:
+        # Get the card
+        card = db.query(Card).filter(Card.id == card_id, Card.deleted.is_(False)).first()
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found")
+        
+        # Get current scan information
+        current_scan = None
+        current_scan_image = None
+        
+        if card.scan_id:
+            scan = db.query(Scan).filter(Scan.id == card.scan_id).first()
+            if scan:
+                current_scan = {
+                    "id": scan.id,
+                    "created_at": scan.created_at.isoformat() if scan.created_at else None,
+                    "status": scan.status,
+                    "total_cards_found": scan.total_cards_found,
+                    "total_images": scan.total_images
+                }
+                
+                # Get scan images for this scan
+                if card.scan_result_id:
+                    scan_result = db.query(ScanResult).filter(ScanResult.id == card.scan_result_id).first()
+                    if scan_result and scan_result.scan_image_id:
+                        scan_image = db.query(ScanImage).filter(ScanImage.id == scan_result.scan_image_id).first()
+                        if scan_image:
+                            current_scan_image = {
+                                "id": scan_image.id,
+                                "filename": scan_image.filename,
+                                "cards_found": scan_image.cards_found
+                            }
+        
+        return {
+            "card": {
+                "id": card.id,
+                "name": card.name,
+                "set_name": card.set_name,
+                "set_code": card.set_code,
+                "collector_number": card.collector_number,
+                "image_url": card.image_url,
+                "scan_id": card.scan_id,
+                "scan_result_id": card.scan_result_id,
+                "condition": card.condition,
+                "count": card.count,
+                "first_seen": card.first_seen.isoformat() if card.first_seen else None
+            },
+            "current_scan": current_scan,
+            "current_scan_image": current_scan_image
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting card for scan tool: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/card-scan-tool/scans")
+async def get_available_scans(db: Session = Depends(get_db)):
+    """Get all available scans with their images for the association tool"""
+    try:
+        # Get all completed scans with their images
+        scans = db.query(Scan).filter(
+            Scan.status == 'COMPLETED'
+        ).order_by(Scan.created_at.desc()).all()
+        
+        result = []
+        for scan in scans:
+            # Get scan images for this scan
+            scan_images = db.query(ScanImage).filter(ScanImage.scan_id == scan.id).all()
+            
+            scan_data = {
+                "id": scan.id,
+                "created_at": scan.created_at.isoformat() if scan.created_at else None,
+                "status": scan.status,
+                "total_cards_found": scan.total_cards_found,
+                "total_images": scan.total_images,
+                "processed_images": scan.processed_images,
+                "images": []
+            }
+            
+            for img in scan_images:
+                scan_data["images"].append({
+                    "id": img.id,
+                    "filename": img.filename,
+                    "cards_found": img.cards_found,
+                    "processed_at": img.processed_at.isoformat() if img.processed_at else None
+                })
+            
+            result.append(scan_data)
+        
+        return {
+            "scans": result,
+            "total_scans": len(result)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting available scans: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/card-scan-tool/card/{card_id}/associate")
+async def associate_card_with_scan(card_id: int, association_data: dict, db: Session = Depends(get_db)):
+    """Update card's scan association"""
+    try:
+        # Get the card
+        card = db.query(Card).filter(Card.id == card_id, Card.deleted.is_(False)).first()
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found")
+        
+        new_scan_id = association_data.get('scan_id')
+        new_scan_image_id = association_data.get('scan_image_id')
+        
+        if not new_scan_id:
+            raise HTTPException(status_code=400, detail="scan_id is required")
+        
+        # Verify the scan exists
+        scan = db.query(Scan).filter(Scan.id == new_scan_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Update the card's scan association
+        old_scan_id = card.scan_id
+        old_scan_result_id = card.scan_result_id
+        
+        card.scan_id = new_scan_id
+        
+        # If a specific scan image was selected, try to find a matching scan result
+        if new_scan_image_id:
+            # Find a scan result for this scan and scan image
+            scan_result = db.query(ScanResult).filter(
+                ScanResult.scan_id == new_scan_id,
+                ScanResult.scan_image_id == new_scan_image_id,
+                ScanResult.card_name == card.name  # Try to match by card name
+            ).first()
+            
+            if scan_result:
+                card.scan_result_id = scan_result.id
+            else:
+                # If no exact match, find any result from this scan image
+                scan_result = db.query(ScanResult).filter(
+                    ScanResult.scan_id == new_scan_id,
+                    ScanResult.scan_image_id == new_scan_image_id
+                ).first()
+                
+                if scan_result:
+                    card.scan_result_id = scan_result.id
+                else:
+                    card.scan_result_id = None
+        else:
+            card.scan_result_id = None
+        
+        db.commit()
+        
+        # Log the change
+        logger.info(f"Card #{card_id} '{card.name}' association updated: "
+                   f"scan_id {old_scan_id}→{new_scan_id}, "
+                   f"scan_result_id {old_scan_result_id}→{card.scan_result_id}")
+        
+        return {
+            "success": True,
+            "message": f"Card '{card.name}' associated with Scan #{new_scan_id}",
+            "old_association": {
+                "scan_id": old_scan_id,
+                "scan_result_id": old_scan_result_id
+            },
+            "new_association": {
+                "scan_id": card.scan_id,
+                "scan_result_id": card.scan_result_id
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error associating card with scan: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/card/{card_id}/scan-image")
+async def get_card_scan_image(card_id: int, db: Session = Depends(get_db)):
+    """Get the specific scan image that produced this card"""
+    try:
+        # Get the card with its scan result
+        card = db.query(Card).filter(Card.id == card_id, Card.deleted == False).first()
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found")
+        
+        # If card doesn't have a scan result, return empty
+        if not card.scan_result_id:
+            return {
+                "success": False,
+                "message": "Card was not created from a scan",
+                "has_scan_image": False
+            }
+        
+        # Get the scan result to find the specific image
+        scan_result = db.query(ScanResult).filter(ScanResult.id == card.scan_result_id).first()
+        if not scan_result:
+            return {
+                "success": False,
+                "message": "Scan result not found",
+                "has_scan_image": False
+            }
+        
+        # Get the specific scan image
+        scan_image = db.query(ScanImage).filter(ScanImage.id == scan_result.scan_image_id).first()
+        if not scan_image:
+            return {
+                "success": False,
+                "message": "Scan image not found",
+                "has_scan_image": False
+            }
+        
+        return {
+            "success": True,
+            "has_scan_image": True,
+            "scan_id": scan_result.scan_id,
+            "scan_image_id": scan_image.id,
+            "filename": scan_image.filename,
+            "original_filename": scan_image.original_filename,
+            "image_url": f"/uploads/{scan_image.filename}",
+            "card_name": card.name
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting card scan image: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}",
+            "has_scan_image": False
+        }
 
 if __name__ == "__main__":
     import uvicorn

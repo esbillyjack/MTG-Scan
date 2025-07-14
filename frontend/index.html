@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Magic Card Scanner</title>
     <link rel="stylesheet" href="/static/styles.css?v=2025011306">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -75,7 +75,7 @@
                                     🔧
                                 </button>
                                 <div class="tools-dropdown" id="toolsDropdown">
-                                    <button class="tool-item" onclick="showDatabaseStatus()">
+                                                                        <button class="tool-item" onclick="showDatabaseStatus()">
                                         <i class="fas fa-database"></i> Database Status
                                     </button>
                                     <button class="tool-item" onclick="showScanHistory()">
@@ -232,6 +232,23 @@
                     <div class="ai-logs-loading">
                         <i class="fas fa-spinner fa-spin"></i>
                         <p>Loading AI service status...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card-Scan Association Tool Modal -->
+        <div class="modal" id="cardScanAssociationModal" style="display: none;">
+            <div class="modal-content" style="max-width: 1200px; max-height: 90vh;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-link"></i> Card-Scan Association Tool</h3>
+                    <button class="close-btn" onclick="closeCardScanAssociationTool()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="cardScanAssociationContent">
+                    <div class="card-scan-tool-loading">
+                        <p><i class="fas fa-spinner fa-spin"></i> Loading association tool...</p>
                     </div>
                 </div>
             </div>

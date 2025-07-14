@@ -1035,10 +1035,18 @@ async function showDatabaseStatus() {
                     <p>${status.error}</p>
                 </div>
             `;
+            
+            // Remove any existing navigation arrows
+            const existingArrows = document.querySelectorAll('.nav-arrow');
+            existingArrows.forEach(arrow => arrow.remove());
             return;
         }
         
         modalBody.innerHTML = createDatabaseStatusHTML(status);
+        
+        // Remove any existing navigation arrows (they shouldn't be in database status)
+        const existingArrows = document.querySelectorAll('.nav-arrow');
+        existingArrows.forEach(arrow => arrow.remove());
         
     } catch (error) {
         console.error('Error loading database status:', error);
@@ -1049,6 +1057,10 @@ async function showDatabaseStatus() {
                 <p>Unable to load database status. Please check your connection.</p>
             </div>
         `;
+        
+        // Remove any existing navigation arrows
+        const existingArrows = document.querySelectorAll('.nav-arrow');
+        existingArrows.forEach(arrow => arrow.remove());
     }
 }
 
@@ -1189,7 +1201,6 @@ function createDatabaseStatusHTML(status) {
                             <div class="activity-item">
                                 <div class="activity-main">
                                     <strong>Scan #${scan.scan_id}</strong>
-                                    <span class="activity-status status-${scan.status.toLowerCase()}">${scan.status}</span>
                                 </div>
                                 <div class="activity-meta">
                                     <span class="activity-cards">${scan.total_cards_found || 0} cards found</span>
@@ -1866,30 +1877,16 @@ function formatManaCost(manaCost) {
 // Create enhanced card detail HTML with navigation
 function createEnhancedCardDetailHTML(card, filteredCards) {
     const condition = card.condition && CONDITION_OPTIONS.find(opt => opt.value === card.condition) ? card.condition : 'LP';
-    const conditionDropdown = card.id && card.id !== 'undefined' ? `
-        <select id="conditionDropdown" onchange="updateCardConditionWithLivePrice(${card.id}, this.value)">
-            ${CONDITION_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === condition ? ' selected' : ''}>${opt.label}</option>`).join('')}
-        </select>
-    ` : `
-        <select id="conditionDropdown" disabled>
-            ${CONDITION_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === condition ? ' selected' : ''}>${opt.label}</option>`).join('')}
-        </select>
-    `;
+    const conditionLabel = CONDITION_OPTIONS.find(opt => opt.value === condition)?.label || 'Lightly Played';
+    const conditionDisplay = `<span class="read-only-field">${conditionLabel}</span>`;
     
     const rarity = card.rarity && RARITY_OPTIONS.find(opt => opt.value === card.rarity.toLowerCase()) ? card.rarity.toLowerCase() : 'unknown';
     const rarityLabel = RARITY_OPTIONS.find(opt => opt.value === rarity)?.label || 'Unknown';
     const rarityDisplay = `<span class="read-only-field">${rarityLabel}</span>`;
     
     const setCode = card.set_code ? card.set_code.toLowerCase() : 'unknown';
-    const setDropdown = card.id && card.id !== 'undefined' ? `
-        <select id="setDropdown" onchange="updateCardSet(${card.id}, this.value)">
-            ${SET_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === setCode ? ' selected' : ''}>${opt.label}</option>`).join('')}
-        </select>
-    ` : `
-        <select id="setDropdown" disabled>
-            ${SET_OPTIONS.map(opt => `<option value="${opt.value}"${opt.value === setCode ? ' selected' : ''}>${opt.label}</option>`).join('')}
-        </select>
-    `;
+    const setLabel = SET_OPTIONS.find(opt => opt.value === setCode)?.label || card.set_name || 'Unknown Set';
+    const setDisplay = `<span class="read-only-field">${setLabel}</span>`;
     
     // Calculate the correct count to display - always show actual database count
     let displayCount;
@@ -1925,7 +1922,7 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Set:</span>
-                    <span class="detail-value">${setDropdown}</span>
+                    <span class="detail-value">${setDisplay}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Rarity:</span>
@@ -1941,13 +1938,13 @@ function createEnhancedCardDetailHTML(card, filteredCards) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Condition:</span>
-                    <span class="detail-value">${conditionDropdown}</span>
+                    <span class="detail-value">${conditionDisplay}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Added:</span>
                     <span class="detail-value">
                         ${formatDateTime(card.first_seen)} 
-                        <span class="added-method">(${formatAddedMethod(card.added_method)}${card.added_method === 'SCANNED' && card.scan_id ? `<button class="scan-emoji-btn" onclick="viewScanImage(${card.scan_id}, &quot;${card.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}&quot;)" title="View original scanned image" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #4fc3f7; padding: 0 2px; border-radius: 50%; vertical-align: middle; margin-left: 2px;">🔍</button>` : ''})</span>
+                        <span class="added-method">(${formatAddedMethod(card.added_method)}${card.added_method === 'SCANNED' && card.scan_id && card.id ? `<button class="scan-emoji-btn" onclick="viewCardScanImage(${card.id}, &quot;${card.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}&quot;)" title="View specific scan image that produced this card" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #4fc3f7; padding: 0 2px; border-radius: 50%; vertical-align: middle; margin-left: 2px;">🔍</button>` : ''})</span>
                     </span>
                 </div>
                 <div class="detail-row">
@@ -3789,6 +3786,7 @@ async function viewScanImage(scanId, cardName) {
     }
 }
 
+
 // Scan History functionality
 async function showScanHistory() {
     // Close tools dropdown
@@ -3856,7 +3854,29 @@ function displayScanHistory(scanHistory) {
     
     const scansHtml = scanHistory.scans.map(scan => createScanHistoryItem(scan)).join('');
     
+    // Create summary section
+    const summaryHtml = scanHistory.summary ? `
+        <div class="scan-history-summary">
+            <h3><i class="fas fa-chart-pie"></i> Scan Summary</h3>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <span class="stat-number">${scanHistory.summary.scans_with_cards}</span>
+                    <span class="stat-label">Successful Scans</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-number">${scanHistory.summary.total_images}</span>
+                    <span class="stat-label">Total Images</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-number">${scanHistory.summary.total_cards}</span>
+                    <span class="stat-label">Cards Found</span>
+                </div>
+            </div>
+        </div>
+    ` : '';
+    
     body.innerHTML = `
+        ${summaryHtml}
         <div class="scan-history-list">
             ${scansHtml}
         </div>
@@ -3896,17 +3916,13 @@ function createScanHistoryItem(scan) {
         `).join('')
         : '<p style="color: #999; font-style: italic;">No cards identified</p>';
     
-    const statusText = scan.status === 'completed' ? 'Completed' : scan.status === 'failed' ? 'Failed' : 'In Progress';
-    const statusColor = scan.status === 'completed' ? '#28a745' : scan.status === 'failed' ? '#dc3545' : '#ffc107';
-    
     return `
         <div class="scan-item">
             <div class="scan-header">
                 <div class="scan-info">
                     <h4>Scan #${scan.id}</h4>
                     <div class="scan-meta">
-                        ${formattedDate} at ${formattedTime} • 
-                        <span style="color: ${statusColor}; font-weight: 500;">${statusText}</span>
+                        ${formattedDate} at ${formattedTime}
                     </div>
                 </div>
                 <div class="scan-stats">
@@ -5166,3 +5182,318 @@ async function startExport() {
 }
 
 // ... rest of the existing code ...
+
+// Card-Scan Association Tool
+let currentAssociationCard = null;
+let availableScans = [];
+let currentScanIndex = 0;
+
+async function showCardScanAssociationTool() {
+    // First, get a random card to start with, or prompt user to select
+    await loadRandomCardForAssociation();
+}
+
+async function loadRandomCardForAssociation() {
+    try {
+        // Get all cards to choose from
+        const response = await fetch('/cards?view_mode=individual');
+        const data = await response.json();
+        
+        if (data.cards && data.cards.length > 0) {
+            // Start with the first card
+            const randomCard = data.cards[0];
+            await loadCardForAssociation(randomCard.id);
+        } else {
+            alert('No cards found in database');
+        }
+    } catch (error) {
+        console.error('Error loading random card:', error);
+        alert('Error loading card data');
+    }
+}
+
+async function loadCardForAssociation(cardId) {
+    try {
+        // Show the modal
+        document.getElementById('cardScanAssociationModal').style.display = 'flex';
+        
+        // Load card data and available scans in parallel
+        const [cardResponse, scansResponse] = await Promise.all([
+            fetch(`/api/card-scan-tool/card/${cardId}`),
+            fetch('/api/card-scan-tool/scans')
+        ]);
+        
+        const cardData = await cardResponse.json();
+        const scansData = await scansResponse.json();
+        
+        currentAssociationCard = cardData;
+        availableScans = scansData.scans;
+        
+        // Find current scan index
+        currentScanIndex = 0;
+        if (cardData.current_scan) {
+            const scanIndex = availableScans.findIndex(scan => scan.id === cardData.current_scan.id);
+            if (scanIndex !== -1) {
+                currentScanIndex = scanIndex;
+            }
+        }
+        
+        // Display the interface
+        displayCardScanAssociationInterface();
+        
+    } catch (error) {
+        console.error('Error loading card for association:', error);
+        alert('Error loading card data');
+    }
+}
+
+function displayCardScanAssociationInterface() {
+    const content = document.getElementById('cardScanAssociationContent');
+    const card = currentAssociationCard.card;
+    const currentScan = availableScans[currentScanIndex];
+    
+    content.innerHTML = `
+        <div class="card-scan-association-interface">
+            <!-- Card Selection Header -->
+            <div class="association-header">
+                <h4>Fixing Scan Association for Card</h4>
+                <div class="card-selector">
+                    <button class="btn btn-secondary" onclick="selectDifferentCard()">
+                        <i class="fas fa-exchange-alt"></i> Select Different Card
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Main Interface -->
+            <div class="association-main">
+                <!-- Left Side: Card Info -->
+                <div class="association-card-side">
+                    <h5><i class="fas fa-magic"></i> Card Information</h5>
+                    <div class="card-info-display">
+                        <div class="card-image-container">
+                            ${card.image_url ? 
+                                `<img src="${card.image_url}" alt="${card.name}" class="association-card-image">` :
+                                `<div class="no-image-placeholder">No Image</div>`
+                            }
+                        </div>
+                        <div class="card-details">
+                            <h6>${card.name}</h6>
+                            <p><strong>Set:</strong> ${card.set_name} (${card.set_code})</p>
+                            <p><strong>Collector #:</strong> ${card.collector_number || 'N/A'}</p>
+                            <p><strong>Condition:</strong> ${card.condition}</p>
+                            <p><strong>Count:</strong> ${card.count}</p>
+                            <p><strong>Current Scan ID:</strong> ${card.scan_id || 'None'}</p>
+                            <p><strong>First Seen:</strong> ${formatDateTime(card.first_seen)}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Side: Scan Selection -->
+                <div class="association-scan-side">
+                    <h5><i class="fas fa-camera"></i> Scan Selection</h5>
+                    <div class="scan-navigation">
+                        <button class="btn btn-secondary" onclick="previousScan()" ${currentScanIndex === 0 ? 'disabled' : ''}>
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <span class="scan-counter">${currentScanIndex + 1} of ${availableScans.length}</span>
+                        <button class="btn btn-secondary" onclick="nextScan()" ${currentScanIndex >= availableScans.length - 1 ? 'disabled' : ''}>
+                            <i class="fas fa-chevron-right"></i> Next
+                        </button>
+                    </div>
+                    
+                    <div class="current-scan-display">
+                        <h6>Scan #${currentScan.id}</h6>
+                        <p><strong>Date:</strong> ${formatDateTime(currentScan.created_at)}</p>
+                        <p><strong>Cards Found:</strong> ${currentScan.total_cards_found}</p>
+                        <p><strong>Images:</strong> ${currentScan.images.length}</p>
+                        
+                        <!-- Scan Images -->
+                        <div class="scan-images-grid">
+                            ${currentScan.images.map(img => `
+                                <div class="scan-image-item" onclick="selectScanImage(${img.id})" data-image-id="${img.id}">
+                                    <img src="/uploads/${img.filename}" alt="Scan Image" class="scan-thumbnail">
+                                    <div class="scan-image-info">
+                                        <small>${img.cards_found} cards</small>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="association-actions">
+                <button class="btn btn-primary" onclick="associateCardWithCurrentScan()">
+                    <i class="fas fa-link"></i> Associate with Scan #${currentScan.id}
+                </button>
+                <button class="btn btn-secondary" onclick="associateCardWithSelectedImage()">
+                    <i class="fas fa-image"></i> Associate with Selected Image
+                </button>
+                <div class="association-status" id="associationStatus"></div>
+            </div>
+        </div>
+    `;
+    
+    // Highlight current scan if it matches the card's scan
+    if (currentAssociationCard.current_scan && currentAssociationCard.current_scan.id === currentScan.id) {
+        const status = document.getElementById('associationStatus');
+        status.innerHTML = '<i class="fas fa-check-circle"></i> This is the current scan association';
+        status.className = 'association-status current-association';
+    }
+}
+
+function previousScan() {
+    if (currentScanIndex > 0) {
+        currentScanIndex--;
+        displayCardScanAssociationInterface();
+    }
+}
+
+function nextScan() {
+    if (currentScanIndex < availableScans.length - 1) {
+        currentScanIndex++;
+        displayCardScanAssociationInterface();
+    }
+}
+
+let selectedScanImageId = null;
+
+function selectScanImage(imageId) {
+    // Remove previous selection
+    document.querySelectorAll('.scan-image-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // Add selection to clicked image
+    const imageItem = document.querySelector(`[data-image-id="${imageId}"]`);
+    if (imageItem) {
+        imageItem.classList.add('selected');
+        selectedScanImageId = imageId;
+    }
+}
+
+async function associateCardWithCurrentScan() {
+    const currentScan = availableScans[currentScanIndex];
+    await updateCardScanAssociation(currentScan.id, null);
+}
+
+async function associateCardWithSelectedImage() {
+    if (!selectedScanImageId) {
+        alert('Please select a scan image first');
+        return;
+    }
+    
+    const currentScan = availableScans[currentScanIndex];
+    await updateCardScanAssociation(currentScan.id, selectedScanImageId);
+}
+
+async function updateCardScanAssociation(scanId, scanImageId) {
+    try {
+        const statusDiv = document.getElementById('associationStatus');
+        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating association...';
+        statusDiv.className = 'association-status updating';
+        
+        const response = await fetch(`/api/card-scan-tool/card/${currentAssociationCard.card.id}/associate`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                scan_id: scanId,
+                scan_image_id: scanImageId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> Association updated successfully!';
+            statusDiv.className = 'association-status success';
+            
+            // Reload the card data to show updated association
+            setTimeout(() => {
+                loadCardForAssociation(currentAssociationCard.card.id);
+            }, 1000);
+            
+        } else {
+            throw new Error(result.message || 'Association failed');
+        }
+        
+    } catch (error) {
+        console.error('Error updating association:', error);
+        const statusDiv = document.getElementById('associationStatus');
+        statusDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error updating association';
+        statusDiv.className = 'association-status error';
+    }
+}
+
+async function selectDifferentCard() {
+    // For now, just load a random card. Could be enhanced with a card picker
+    await loadRandomCardForAssociation();
+}
+
+function closeCardScanAssociationTool() {
+    document.getElementById('cardScanAssociationModal').style.display = 'none';
+    currentAssociationCard = null;
+    availableScans = [];
+    currentScanIndex = 0;
+    selectedScanImageId = null;
+}
+
+// Updated function to view the specific scan image that produced this card
+async function viewCardScanImage(cardId, cardName) {
+    try {
+        // Get the specific scan image that produced this card
+        const response = await fetch(`/card/${cardId}/scan-image`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch card scan image');
+        }
+        
+        const scanImageData = await response.json();
+        
+        if (!scanImageData.success || !scanImageData.has_scan_image) {
+            alert(scanImageData.message || 'No scan image found for this card');
+            return;
+        }
+        
+        // Show the specific scan image that produced this card
+        showFullScanImage(
+            scanImageData.filename, 
+            scanImageData.image_url, 
+            `Original scan image for: ${cardName}`
+        );
+        
+    } catch (error) {
+        console.error('Error viewing card scan image:', error);
+        alert('Failed to load scan image');
+    }
+}
+
+// Keep the old function for backward compatibility (scan history, etc.)
+async function viewScanImage(scanId, cardName) {
+    try {
+        // Fetch scan data to get the image filename
+        const response = await fetch(`/scan/${scanId}/details`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch scan details');
+        }
+        
+        const scanData = await response.json();
+        if (!scanData.success || !scanData.scan.images || scanData.scan.images.length === 0) {
+            alert('No scan image found for this card');
+            return;
+        }
+        
+        // Use the first image from the scan
+        const imageFilename = scanData.scan.images[0].filename;
+        const imageUrl = `/uploads/${imageFilename}`;
+        
+        // Show the scan image in full screen
+        showFullScanImage(imageFilename, imageUrl, `Original scan for: ${cardName}`);
+        
+    } catch (error) {
+        console.error('Error viewing scan image:', error);
+        alert('Failed to load scan image');
+    }
+}
