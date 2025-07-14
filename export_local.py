@@ -15,13 +15,25 @@ import subprocess
 import platform
 
 def get_database_connection():
-    """Get database connection."""
-    env_mode = os.getenv("ENV_MODE", "production")
-    if env_mode == "development":
-        db_path = Path(__file__).parent / "magic_cards_dev.db"
+    """Get database connection - works with both SQLite (local) and PostgreSQL (Railway)."""
+    database_url = os.getenv("DATABASE_URL")
+    
+    if database_url:
+        # Railway/Cloud environment with PostgreSQL
+        import psycopg2
+        from sqlalchemy import create_engine
+        
+        # Use SQLAlchemy for PostgreSQL connection
+        engine = create_engine(database_url)
+        return engine
     else:
-        db_path = Path(__file__).parent / "magic_cards.db"
-    return sqlite3.connect(str(db_path))
+        # Local environment with SQLite
+        env_mode = os.getenv("ENV_MODE", "production")
+        if env_mode == "development":
+            db_path = Path(__file__).parent / "magic_cards_dev.db"
+        else:
+            db_path = Path(__file__).parent / "magic_cards.db"
+        return sqlite3.connect(str(db_path))
 
 def export_cards_to_file(file_path, file_format="csv", overwrite=False):
     """Export cards to specified file path."""
@@ -37,6 +49,7 @@ def export_cards_to_file(file_path, file_format="csv", overwrite=False):
         # Get card data from database
         conn = get_database_connection()
         
+        # SQL query that works for both SQLite and PostgreSQL
         query = """
         SELECT 
             name,
@@ -55,12 +68,22 @@ def export_cards_to_file(file_path, file_format="csv", overwrite=False):
             last_seen,
             added_method
         FROM cards 
-        WHERE deleted = 0
+        WHERE deleted = false OR deleted IS NULL
         ORDER BY name, set_code
         """
         
         df = pd.read_sql_query(query, conn)
-        conn.close()
+        
+        # Close connection properly
+        try:
+            # Try SQLAlchemy engine dispose method
+            conn.dispose()
+        except AttributeError:
+            try:
+                # Try SQLite connection close method
+                conn.close()
+            except AttributeError:
+                pass  # Connection doesn't need explicit closing
         
         if df.empty:
             return {
