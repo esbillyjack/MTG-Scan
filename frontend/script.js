@@ -5571,12 +5571,11 @@ function displayAIPreference(preferenceData) {
     const body = document.getElementById('aiPreferenceBody');
     
     const primary = preferenceData.primary;
-    const fallback = preferenceData.fallback;
     
     body.innerHTML = `
         <div class="ai-preference-content">
             <div class="preference-info">
-                <p><i class="fas fa-info-circle"></i> Choose which AI model to use as the primary processor for card identification. The other model will be used as a fallback if the primary fails.</p>
+                <p><i class="fas fa-info-circle"></i> Choose which AI model to use as the primary processor for card identification.</p>
             </div>
             
             <div class="preference-options">
@@ -5584,7 +5583,7 @@ function displayAIPreference(preferenceData) {
                     <div class="option-header">
                         <i class="fas fa-robot"></i>
                         <h4>Claude Vision</h4>
-                        ${primary === 'claude' ? '<span class="primary-badge">Primary</span>' : '<span class="fallback-badge">Fallback</span>'}
+                        ${primary === 'claude' ? '<span class="primary-badge">Selected</span>' : ''}
                     </div>
                     <div class="option-details">
                         <p><strong>Model:</strong> Claude 3.5 Sonnet</p>
@@ -5597,7 +5596,7 @@ function displayAIPreference(preferenceData) {
                     <div class="option-header">
                         <i class="fas fa-brain"></i>
                         <h4>OpenAI GPT-4 Vision</h4>
-                        ${primary === 'openai' ? '<span class="primary-badge">Primary</span>' : '<span class="fallback-badge">Fallback</span>'}
+                        ${primary === 'openai' ? '<span class="primary-badge">Selected</span>' : ''}
                     </div>
                     <div class="option-details">
                         <p><strong>Model:</strong> GPT-4o</p>
@@ -5648,3 +5647,32 @@ async function setAIPreference(model) {
 }
 
 // ... existing code ...
+
+// Simple notification system
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        <span>${message}</span>
+    `;
+    
+    // Add to page
+    document.body.appendChild(notification);
+    
+    // Show notification
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 100);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
