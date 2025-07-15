@@ -2761,6 +2761,27 @@ async def upload_file(file: UploadFile):
         logger.error(f"❌ Upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Add file listing endpoint for Railway
+@app.get("/api/files")
+async def list_files():
+    """List files in Railway environment"""
+    try:
+        # Only allow this endpoint when running on Railway
+        if not os.path.exists("/app") or not os.getenv("RAILWAY_STATIC_URL"):
+            raise HTTPException(status_code=403, detail="Files endpoint only available in Railway environment")
+        
+        # List files in uploads directory
+        files = []
+        if os.path.exists(UPLOADS_DIR):
+            for file in os.listdir(UPLOADS_DIR):
+                if file.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                    files.append(file)
+        
+        return {"files": files}
+    except Exception as e:
+        logger.error(f"❌ Files listing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     import os
