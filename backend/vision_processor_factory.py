@@ -80,10 +80,16 @@ class OpenAIVisionProcessor(VisionProcessorBase):
         """Process image using OpenAI Vision API"""
         try:
             import base64
+            import time
+            
+            logger.info(f"🔍 OpenAI Vision: Starting image processing for {image_path}")
+            start_time = time.time()
             
             # Read and encode image
             with open(image_path, 'rb') as image_file:
                 image_data = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            logger.info(f"📊 OpenAI Vision: Image encoded, size: {len(image_data)} chars")
             
             # OpenAI vision prompt
             prompt = """
@@ -136,28 +142,41 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
 """
             
             # Make OpenAI API call
-            response = self.client.chat.completions.create(
-                model=self.config.get('model', 'gpt-4o'),
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_data}"
+            logger.info(f"🚀 OpenAI Vision: Making API call to {self.config.get('model', 'gpt-4o')}")
+            api_start_time = time.time()
+            
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.config.get('model', 'gpt-4o'),
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{image_data}"
+                                    }
                                 }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=self.config.get('max_tokens', 1500),
-                temperature=self.config.get('temperature', 0.0)
-            )
+                            ]
+                        }
+                    ],
+                    max_tokens=self.config.get('max_tokens', 1500),
+                    temperature=self.config.get('temperature', 0.0)
+                )
+                
+                api_time = time.time() - api_start_time
+                logger.info(f"✅ OpenAI Vision: API call successful in {api_time:.2f}s")
+                
+            except Exception as api_error:
+                api_time = time.time() - api_start_time
+                logger.error(f"❌ OpenAI Vision: API call failed after {api_time:.2f}s: {api_error}")
+                raise api_error
             
             # Parse response
             content = response.choices[0].message.content
+            logger.info(f"📝 OpenAI Vision: Received response, content length: {len(content) if content else 0}")
             
             # Extract JSON from response
             import re
@@ -166,8 +185,14 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
                 json_match = re.search(r'\[.*\]', content, re.DOTALL)
                 if json_match:
                     cards = json.loads(json_match.group())
+                    total_time = time.time() - start_time
+                    logger.info(f"✅ OpenAI Vision: Successfully parsed {len(cards)} cards in {total_time:.2f}s")
                     self.record_success()
                     return cards
+                else:
+                    logger.warning(f"⚠️ OpenAI Vision: No JSON array found in response. Content preview: {content[:200]}...")
+            else:
+                logger.warning("⚠️ OpenAI Vision: Empty response content")
             
             # If no JSON found, return empty array
             logger.warning("No valid JSON found in OpenAI response")
@@ -175,6 +200,11 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             return []
             
         except Exception as e:
+            total_time = time.time() - start_time if 'start_time' in locals() else 0
+            logger.error(f"❌ OpenAI Vision: Processing failed after {total_time:.2f}s: {e}")
+            logger.error(f"❌ OpenAI Vision: Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"❌ OpenAI Vision: Traceback: {traceback.format_exc()}")
             self.record_failure()
             raise Exception(f"OpenAI Vision processing failed: {e}")
 
@@ -633,9 +663,11 @@ class VisionProcessorFactory:
     def _try_failover(self, image_path: str) -> List[Dict[str, Any]]:
         """Try failover processors"""
         current_name = self.current_processor.get_name().lower().replace(" ", "_")
+        logger.warning(f"🔄 Failover triggered: {self.current_processor.get_name()} failed, trying alternatives...")
         
         # Get fallback processor
         fallback_name = self.config["vision_processor"]["fallback"]
+        logger.info(f"🎯 Configured fallback processor: {fallback_name}")
         
         if fallback_name in self.processors and self.processors[fallback_name].is_available():
             logger.info(f"🔄 Switching to fallback processor: {fallback_name}")
@@ -645,22 +677,28 @@ class VisionProcessorFactory:
                 result = fallback_processor.process_image(image_path)
                 # Update current processor
                 self.current_processor = fallback_processor
+                logger.info(f"✅ Fallback to {fallback_name} successful")
                 return result
                 
             except Exception as e:
                 logger.error(f"❌ Fallback processor {fallback_name} also failed: {e}")
+                logger.error(f"❌ Fallback error type: {type(e).__name__}")
         
         # Try any other available processor
+        logger.info("🔄 Trying all available processors...")
         for name, processor in self.processors.items():
             if processor.is_available() and processor != self.current_processor:
                 logger.info(f"🔄 Trying alternative processor: {name}")
                 try:
                     result = processor.process_image(image_path)
                     self.current_processor = processor
+                    logger.info(f"✅ Alternative processor {name} successful")
                     return result
                 except Exception as e:
                     logger.error(f"❌ Alternative processor {name} failed: {e}")
+                    logger.error(f"❌ Alternative error type: {type(e).__name__}")
         
+        logger.error("💥 All vision processors failed")
         raise Exception("All vision processors failed")
     
     def get_current_processor_name(self) -> str:
