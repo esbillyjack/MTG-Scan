@@ -193,7 +193,11 @@ class ClaudeVisionProcessor(VisionProcessorBase):
             if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY environment variable required")
             
-            self.client = anthropic.Anthropic(api_key=api_key)
+            # Initialize with minimal parameters to avoid compatibility issues
+            self.client = anthropic.Anthropic(
+                api_key=api_key,
+                timeout=120.0
+            )
         except Exception as e:
             logger.error(f"Failed to setup Claude client: {e}")
             logger.warning("Install: pip install anthropic")
