@@ -208,7 +208,6 @@ def get_uploads_path():
         # Actually running on Railway - use mounted volume
         uploads_path = "/app/uploads"
     else:
-        # Local development (even if connecting to Railway DB) - use relative path
         uploads_path = "uploads"
     
     # Ensure directory exists
@@ -221,13 +220,23 @@ def should_use_railway_files():
 
 def get_railway_url():
     """Get Railway app URL for file operations"""
-    return os.getenv("RAILWAY_APP_URL", "")
+    url = os.getenv("RAILWAY_APP_URL", "").rstrip('/')
+    if url:
+        # Ensure URL has protocol
+        if not url.startswith(('http://', 'https://')):
+            url = f"https://{url}"
+    return url
 
 async def upload_to_railway(local_file_path: str, filename: str):
     """Upload file to Railway volume"""
-    import requests
     try:
-        railway_upload_url = f"{RAILWAY_URL}/upload"
+        if not RAILWAY_URL:
+            logger.error("❌ Railway URL not configured")
+            return False
+
+        railway_upload_url = f"{RAILWAY_URL}/api/upload"
+        
+        logger.info(f"📤 Uploading {filename} to Railway at {railway_upload_url}")
         
         with open(local_file_path, 'rb') as file:
             files = {'file': (filename, file, 'image/jpeg')}
@@ -238,9 +247,10 @@ async def upload_to_railway(local_file_path: str, filename: str):
             return True
         else:
             logger.error(f"❌ Failed to upload {filename} to Railway: {response.status_code}")
+            logger.error(f"Response: {response.text}")
             return False
     except Exception as e:
-        logger.error(f"❌ Error uploading {filename} to Railway: {e}")
+        logger.error(f"❌ Error uploading to Railway: {str(e)}")
         return False
 
 # Update uploads directory reference
@@ -969,7 +979,10 @@ async def delete_card(card_id: int, db: Session = Depends(get_db)):
 async def get_stats(db: Session = Depends(get_db)):
     """Get database statistics"""
     try:
-        # Get total number of unique cards
+        # Get total number of unique card NAMES (ignoring sets) - SELECT DISTINCT name FROM cards
+        unique_card_names = db.query(Card.name).filter(Card.deleted == False).distinct().count()
+        
+        # Get total number of unique card records (including different sets)
         total_cards = db.query(Card).filter(Card.deleted == False).count()
         
         # Get total count of all cards (including duplicates)
@@ -1011,6 +1024,7 @@ async def get_stats(db: Session = Depends(get_db)):
             }
         
         return {
+            "unique_card_names": unique_card_names,
             "total_cards": total_cards,
             "total_count": total_count,
             "total_value_usd": round(total_value, 2),
@@ -2719,6 +2733,33 @@ async def get_card_images(limit: int = 50, offset: int = 0, db: Session = Depend
             unique_cards.append({"name": name, "image_url": image_url})
             seen.add(image_url)
     return {"cards": unique_cards, "count": len(unique_cards)}
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile):
+    """Handle file uploads in Railway environment"""
+    try:
+        # Only allow this endpoint when running on Railway
+        if not os.path.exists("/app") or not os.getenv("RAILWAY_STATIC_URL"):
+            raise HTTPException(status_code=403, detail="Upload endpoint only available in Railway environment")
+        
+        # Generate unique filename
+        ext = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{ext}"
+        file_path = os.path.join(UPLOADS_DIR, unique_filename)
+        
+        # Save file
+        try:
+            contents = await file.read()
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(contents)
+        except Exception as e:
+            logger.error(f"❌ Failed to save uploaded file: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+        
+        return {"filename": unique_filename}
+    except Exception as e:
+        logger.error(f"❌ Upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
