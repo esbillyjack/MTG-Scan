@@ -4949,5 +4949,172 @@ input:checked + .slider:before {
     width: 0%;
 }
 
+/* AI Preference Modal Styles */
+.ai-preference-modal .modal-content {
+    max-width: 600px;
+    max-height: 80vh;
+}
+
+.ai-preference-loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.ai-preference-loading i {
+    font-size: 2em;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.ai-preference-loading p {
+    color: #666;
+    font-size: 1.1em;
+}
+
+.ai-preference-error {
+    text-align: center;
+    padding: 40px;
+}
+
+.ai-preference-error i {
+    font-size: 2em;
+    color: #e74c3c;
+    margin-bottom: 20px;
+}
+
+.ai-preference-error h3 {
+    color: #e74c3c;
+    margin-bottom: 10px;
+}
+
+.ai-preference-error p {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.ai-preference-content {
+    padding: 20px;
+}
+
+.preference-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.preference-info p {
+    margin: 0;
+    color: #666;
+    font-size: 0.95em;
+}
+
+.preference-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.preference-option {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.preference-option:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.preference-option.selected {
+    border-color: #28a745;
+    background: #f8fff9;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+}
+
+.option-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.option-header i {
+    font-size: 1.5em;
+    color: #007bff;
+}
+
+.option-header h4 {
+    margin: 0;
+    font-size: 1.2em;
+    color: #333;
+}
+
+.primary-badge {
+    background: #28a745;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 500;
+    margin-left: auto;
+}
+
+.fallback-badge {
+    background: #6c757d;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 500;
+    margin-left: auto;
+}
+
+.option-details p {
+    margin: 5px 0;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.option-details strong {
+    color: #333;
+}
+
+.preference-actions {
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+@media (max-width: 768px) {
+    .ai-preference-modal .modal-content {
+        margin: 10px;
+        max-width: calc(100vw - 20px);
+        max-height: calc(100vh - 20px);
+    }
+    
+    .preference-options {
+        gap: 10px;
+    }
+    
+    .preference-option {
+        padding: 15px;
+    }
+    
+    .option-header {
+        flex-wrap: wrap;
+    }
+    
+    .primary-badge,
+    .fallback-badge {
+        margin-left: 0;
+        margin-top: 5px;
+    }
+}
+
 
 

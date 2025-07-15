@@ -5508,3 +5508,143 @@ async function viewScanImage(scanId, cardName) {
         alert('Failed to load scan image');
     }
 }
+
+// AI Preference functionality
+async function showAIPreference() {
+    // Close tools dropdown
+    const dropdown = document.getElementById('toolsDropdown');
+    dropdown.classList.remove('show');
+    
+    // Show modal
+    const modal = document.getElementById('aiPreferenceModal');
+    modal.style.display = 'flex';
+    
+    // Load AI preference data
+    await loadAIPreference();
+}
+
+function closeAIPreferenceModal() {
+    const modal = document.getElementById('aiPreferenceModal');
+    modal.style.display = 'none';
+}
+
+async function loadAIPreference() {
+    const body = document.getElementById('aiPreferenceBody');
+    
+    // Show loading state
+    body.innerHTML = `
+        <div class="ai-preference-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading AI preference settings...</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/api/ai-preference');
+        if (!response.ok) {
+            throw new Error('Failed to load AI preference');
+        }
+        
+        const preferenceData = await response.json();
+        if (preferenceData.success) {
+            displayAIPreference(preferenceData);
+        } else {
+            throw new Error(preferenceData.error || 'Failed to load preference');
+        }
+        
+    } catch (error) {
+        console.error('Error loading AI preference:', error);
+        body.innerHTML = `
+            <div class="ai-preference-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Error Loading Settings</h3>
+                <p>Failed to load AI preference settings. Please try again.</p>
+                <button class="btn btn-primary" onclick="loadAIPreference()">
+                    <i class="fas fa-refresh"></i> Retry
+                </button>
+            </div>
+        `;
+    }
+}
+
+function displayAIPreference(preferenceData) {
+    const body = document.getElementById('aiPreferenceBody');
+    
+    const primary = preferenceData.primary;
+    const fallback = preferenceData.fallback;
+    
+    body.innerHTML = `
+        <div class="ai-preference-content">
+            <div class="preference-info">
+                <p><i class="fas fa-info-circle"></i> Choose which AI model to use as the primary processor for card identification. The other model will be used as a fallback if the primary fails.</p>
+            </div>
+            
+            <div class="preference-options">
+                <div class="preference-option ${primary === 'claude' ? 'selected' : ''}" onclick="setAIPreference('claude')">
+                    <div class="option-header">
+                        <i class="fas fa-robot"></i>
+                        <h4>Claude Vision</h4>
+                        ${primary === 'claude' ? '<span class="primary-badge">Primary</span>' : '<span class="fallback-badge">Fallback</span>'}
+                    </div>
+                    <div class="option-details">
+                        <p><strong>Model:</strong> Claude 3.5 Sonnet</p>
+                        <p><strong>Strengths:</strong> High accuracy, detailed analysis</p>
+                        <p><strong>Confidence:</strong> Percentage-based (e.g., "95%")</p>
+                    </div>
+                </div>
+                
+                <div class="preference-option ${primary === 'openai' ? 'selected' : ''}" onclick="setAIPreference('openai')">
+                    <div class="option-header">
+                        <i class="fas fa-brain"></i>
+                        <h4>OpenAI GPT-4 Vision</h4>
+                        ${primary === 'openai' ? '<span class="primary-badge">Primary</span>' : '<span class="fallback-badge">Fallback</span>'}
+                    </div>
+                    <div class="option-details">
+                        <p><strong>Model:</strong> GPT-4o</p>
+                        <p><strong>Strengths:</strong> Fast processing, broad knowledge</p>
+                        <p><strong>Confidence:</strong> Level-based (High/Medium/Low)</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="preference-actions">
+                <button class="btn btn-secondary" onclick="closeAIPreferenceModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function setAIPreference(model) {
+    try {
+        const response = await fetch('/api/ai-preference', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ primary: model })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update AI preference');
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+            // Show success message
+            showNotification(`AI preference updated to ${model}`, 'success');
+            
+            // Reload the preference display
+            await loadAIPreference();
+        } else {
+            throw new Error(result.error || 'Failed to update preference');
+        }
+        
+    } catch (error) {
+        console.error('Error setting AI preference:', error);
+        showNotification(`Failed to update AI preference: ${error.message}`, 'error');
+    }
+}
+
+// ... existing code ...

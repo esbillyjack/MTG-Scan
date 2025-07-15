@@ -85,6 +85,9 @@
                                     <button class="tool-item" onclick="showUnknownSetsReview()">
                                         <i class="fas fa-question-circle"></i> Review Unknown Sets
                                     </button>
+                                    <button class="tool-item" onclick="showAIPreference()">
+                                        <i class="fas fa-cog"></i> AI Model Preference
+                                    </button>
                                     <button class="tool-item" onclick="showAILogs()">
                                         <i class="fas fa-brain"></i> AI Service Logs
                                     </button>
@@ -215,6 +218,24 @@
                     <div class="unknown-sets-loading">
                         <i class="fas fa-spinner fa-spin"></i>
                         <p>Loading cards with unknown sets...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Preference Modal -->
+        <div class="modal" id="aiPreferenceModal">
+            <div class="modal-content ai-preference-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-cog"></i> AI Model Preference</h3>
+                    <button class="close-btn" onclick="closeAIPreferenceModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="aiPreferenceBody">
+                    <div class="ai-preference-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading AI preference settings...</p>
                     </div>
                 </div>
             </div>

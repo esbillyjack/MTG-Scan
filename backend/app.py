@@ -2582,6 +2582,64 @@ async def list_uploads():
         "files": files
     }
 
+@app.get("/api/ai-preference")
+async def get_ai_preference():
+    """Get current AI model preference"""
+    try:
+        with open("config.json", "r") as f:
+            config = json.load(f)
+        
+        primary = config.get("vision_processor", {}).get("primary", "claude")
+        fallback = config.get("vision_processor", {}).get("fallback", "openai")
+        
+        return {
+            "success": True,
+            "primary": primary,
+            "fallback": fallback,
+            "available_models": ["claude", "openai"]
+        }
+    except Exception as e:
+        logger.error(f"Error getting AI preference: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/api/ai-preference")
+async def set_ai_preference(preference: dict):
+    """Set AI model preference"""
+    try:
+        new_primary = preference.get("primary")
+        if new_primary not in ["claude", "openai"]:
+            raise ValueError("Primary must be 'claude' or 'openai'")
+        
+        # Read current config
+        with open("config.json", "r") as f:
+            config = json.load(f)
+        
+        # Update preference
+        config["vision_processor"]["primary"] = new_primary
+        config["vision_processor"]["fallback"] = "openai" if new_primary == "claude" else "claude"
+        
+        # Write updated config
+        with open("config.json", "w") as f:
+            json.dump(config, f, indent=2)
+        
+        logger.info(f"✅ AI preference updated to: {new_primary}")
+        
+        return {
+            "success": True,
+            "primary": new_primary,
+            "fallback": config["vision_processor"]["fallback"],
+            "message": f"AI preference set to {new_primary}"
+        }
+    except Exception as e:
+        logger.error(f"Error setting AI preference: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 if __name__ == "__main__":
     import uvicorn
     import os
