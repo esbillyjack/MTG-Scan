@@ -208,11 +208,23 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
                     )
                     break  # Success - exit retry loop
                 except Exception as e:
+                    error_str = str(e)
+                    logger.error(f"🔍 DETAILED ERROR: {error_str}")
+                    
+                    # Check for specific OpenAI errors
+                    if "image_parse_error" in error_str:
+                        logger.error("🖼️ IMAGE PARSING ERROR: The image format is invalid or corrupted")
+                        logger.error("This is NOT a connection issue - the image data is bad")
+                        raise Exception(f"Image validation failed: {error_str}")
+                    elif "invalid_request_error" in error_str:
+                        logger.error("🔑 INVALID REQUEST ERROR: API request format is wrong")
+                        raise Exception(f"Invalid request: {error_str}")
+                    
                     if attempt < max_attempts - 1:  # Not the last attempt
-                        if "Connection error" in str(e) or "timeout" in str(e).lower():
+                        if "Connection error" in error_str or "timeout" in error_str.lower():
                             delay = base_delay * (2 ** attempt)  # Exponential backoff
                             logger.warning(f"🔄 Railway connection issue (attempt {attempt + 1}/{max_attempts}). Retrying in {delay} seconds...")
-                            logger.warning(f"Error: {e}")
+                            logger.warning(f"Error: {error_str}")
                             time.sleep(delay)
                             continue
                     # Last attempt or non-connection error - re-raise
