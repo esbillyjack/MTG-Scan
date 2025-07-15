@@ -1225,29 +1225,53 @@ async def upload_scan_images(scan_id: int, files: List[UploadFile] = File(...), 
 @app.post("/scan/{scan_id}/process")
 async def process_scan(scan_id: int, db: Session = Depends(get_db)):
     """Start AI processing of uploaded images"""
+    logger.info("=" * 80)
+    logger.info(f"🔄 SCAN PROCESSING: Starting scan {scan_id}")
+    logger.info(f"📊 ENVIRONMENT: {os.getenv('ENV_MODE', 'unknown')}")
+    logger.info(f"⏰ TIMESTAMP: {datetime.now().isoformat()}")
+    
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
+        logger.error(f"❌ SCAN NOT FOUND: {scan_id}")
         raise HTTPException(status_code=404, detail="Scan not found")
         
     if scan.status != "PENDING":
+        logger.error(f"❌ INVALID STATUS: Scan {scan_id} is {scan.status}, not PENDING")
         raise HTTPException(status_code=400, detail="Scan is not ready for processing")
+    
+    logger.info(f"✅ SCAN FOUND: {scan_id} - Status: {scan.status}")
     
     # Update scan status
     scan.status = "PROCESSING"
     db.commit()
+    logger.info(f"✅ STATUS UPDATED: Scan {scan_id} -> PROCESSING")
     
     try:
         # Get all images for this scan
         scan_images = db.query(ScanImage).filter(ScanImage.scan_id == scan_id).all()
+        logger.info(f"📊 IMAGES FOUND: {len(scan_images)} images for scan {scan_id}")
         
         total_cards_found = 0
         processed_images = 0
         
-        for scan_image in scan_images:
+        for i, scan_image in enumerate(scan_images):
             try:
+                logger.info(f"🔄 PROCESSING IMAGE {i+1}/{len(scan_images)}: {scan_image.file_path}")
+                
+                # Check if image file exists
+                if not os.path.exists(scan_image.file_path):
+                    logger.error(f"❌ IMAGE FILE NOT FOUND: {scan_image.file_path}")
+                    continue
+                
+                # Get image file info
+                file_size = os.path.getsize(scan_image.file_path)
+                logger.info(f"📊 IMAGE SIZE: {file_size} bytes ({file_size/1024/1024:.2f} MB)")
+                
                 # Process image with AI
                 if ai_processor:
+                    logger.info(f"🤖 AI PROCESSING: Starting AI analysis...")
                     card_results = ai_processor.process_image(scan_image.file_path)
+                    logger.info(f"✅ AI COMPLETE: Found {len(card_results)} cards")
                     
                     # Create scan results for each identified card
                     for card_data in card_results:

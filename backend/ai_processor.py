@@ -120,12 +120,29 @@ class CardRecognitionAI:
             logger.info(f"🎯 STARTING AI CARD IDENTIFICATION")
             logger.info(f"📁 Processing image: {image_path}")
             logger.info(f"⏰ Timestamp: {datetime.utcnow().isoformat()}")
+            logger.info(f"📊 ENVIRONMENT: {os.getenv('ENV_MODE', 'unknown')}")
+            logger.info(f"🔑 API_KEY: {self.client.api_key[:15]}...")
+            
+            # Check if image file exists
+            if not os.path.exists(image_path):
+                logger.error(f"❌ IMAGE FILE NOT FOUND: {image_path}")
+                raise FileNotFoundError(f"Image file not found: {image_path}")
+            
+            # Get file info
+            file_size = os.path.getsize(image_path)
+            logger.info(f"📊 FILE SIZE: {file_size} bytes ({file_size/1024/1024:.2f} MB)")
             
             # Apply rate limiting
             self._rate_limit_delay()
             
             # Encode the image
+            logger.info(f"🔄 ENCODING: Starting base64 encoding...")
+            start_encode = time.time()
             base64_image = self.encode_image(image_path)
+            encode_time = time.time() - start_encode
+            logger.info(f"✅ ENCODING: Complete in {encode_time:.2f}s")
+            logger.info(f"📊 BASE64 SIZE: {len(base64_image)} characters")
+            logger.info(f"📊 BASE64 PREVIEW: {base64_image[:100]}...")
         
             # Single optimized prompt
             prompt = """
@@ -179,6 +196,9 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             
             logger.info(f"🤖 Making OpenAI API call (model: gpt-4o)")
             logger.info(f"📊 Image size: {len(base64_image)} base64 characters")
+            logger.info(f"📊 PROMPT LENGTH: {len(prompt)} characters")
+            logger.info(f"📊 TOTAL PAYLOAD SIZE: ~{len(prompt) + len(base64_image)} characters")
+            logger.info(f"🔧 CLIENT CONFIG: timeout={self.client.timeout}, max_retries={self.client.max_retries}")
             
             # Make the API call with Railway-specific retry logic
             max_attempts = 3
@@ -186,6 +206,11 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             
             for attempt in range(max_attempts):
                 try:
+                    logger.info(f"🔄 OpenAI API call attempt {attempt + 1}/{max_attempts}")
+                    logger.info(f"📡 SENDING REQUEST to OpenAI...")
+                    
+                    request_start = time.time()
+                    
                     response = self.client.chat.completions.create(
                         model="gpt-4o",  # Use current vision model
                         messages=[
@@ -206,6 +231,12 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
                         temperature=0.0,  # Make completely deterministic
                         seed=42  # Add seed for reproducibility
                     )
+                    
+                    request_time = time.time() - request_start
+                    logger.info(f"✅ API CALL SUCCESS in {request_time:.2f}s")
+                    logger.info(f"📊 RESPONSE MODEL: {response.model}")
+                    logger.info(f"📊 RESPONSE USAGE: {response.usage}")
+                    
                     break  # Success - exit retry loop
                 except Exception as e:
                     error_str = str(e)
@@ -241,15 +272,21 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             # Log the actual response content for debugging
             if content:
                 logger.info(f"📋 AI Response Preview: {content[:500]}{'...' if len(content) > 500 else ''}")
+            else:
+                logger.warning(f"⚠️ Empty response content from OpenAI")
             
             # Try to extract JSON from the response
+            logger.info(f"🔍 PARSING: Attempting to extract JSON from response...")
             if content:
                 json_match = re.search(r'\[.*\]', content, re.DOTALL)
                 if json_match:
+                    logger.info(f"✅ JSON FOUND: Extracted JSON array from response")
                     try:
                         json_content = json_match.group()
+                        logger.info(f"📊 JSON LENGTH: {len(json_content)} characters")
                         logger.info(f"📋 Extracted JSON: {json_content[:200]}{'...' if len(json_content) > 200 else ''}")
                         cards = json.loads(json_content)
+                        logger.info(f"✅ JSON PARSED: Successfully parsed JSON")
                         logger.info(f"🎉 AI IDENTIFICATION SUCCESS - Found {len(cards)} cards")
                         for i, card in enumerate(cards):
                             logger.info(f"  Card {i+1}: {card.get('name', 'Unknown')} (confidence: {card.get('confidence', 'unknown')})")
