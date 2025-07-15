@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Magic Card Scanner</title>
-    <link rel="stylesheet" href="/static/styles.css?v=2025011306">
+    <link rel="stylesheet" href="/static/styles.css?v=2025011308">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -12,35 +12,53 @@
     <div class="container">
         <header class="header">
             <div class="header-content">
-                <h1><i class="fas fa-magic"></i> Magic Card Scanner</h1>
                 <p>AI-powered Magic: The Gathering card identification and price tracking</p>
             </div>
         </header>
 
         <main class="main-content">
-            <!-- Upload Section -->
+            <!-- Upload Section with Logo -->
             <section class="upload-section">
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-content">
-                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
-                        <h3>Upload Card Photos</h3>
-                        <p>Drag and drop images here or click to browse</p>
-                        <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
-                        <!-- Hidden directory input for export folder selection -->
-                        <input type="file" id="exportBrowseInput" webkitdirectory style="display: none;">
-                        <button class="upload-btn" id="uploadBtn">
-                            <i class="fas fa-folder-open"></i> Choose Files
-                        </button>
-                        <button class="upload-btn camera-btn" id="cameraBtn">
-                            <i class="fas fa-camera"></i>
-                        </button>
+                <div class="logo-section">
+                    <img src="/static/mox-logo.png" alt="MOX - The Magic The Gathering Library" id="moxLogo">
+                    <div class="stats" id="stats">
+                        <div class="stat">
+                            <span class="stat-number" id="totalCards">—</span>
+                            <span class="stat-label">Unique Cards</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="totalCount">—</span>
+                            <span class="stat-label">Total Cards</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="totalValue">—</span>
+                            <span class="stat-label">Value</span>
+                        </div>
                     </div>
                 </div>
-                <div class="upload-progress" id="uploadProgress" style="display: none;">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
+                <div class="upload-container">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-content">
+                            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                            <h3>Upload Card Photos</h3>
+                            <p>Drag and drop images here or click to browse</p>
+                            <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+                            <!-- Hidden directory input for export folder selection -->
+                            <input type="file" id="exportBrowseInput" webkitdirectory style="display: none;">
+                            <button class="upload-btn" id="uploadBtn">
+                                <i class="fas fa-folder-open"></i> Choose Files
+                            </button>
+                            <button class="upload-btn camera-btn" id="cameraBtn">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
                     </div>
-                    <p id="progressText">Processing image...</p>
+                    <div class="upload-progress" id="uploadProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <p id="progressText">Processing image...</p>
+                    </div>
                 </div>
             </section>
 
@@ -52,50 +70,35 @@
 
             <!-- Database Section -->
             <section class="database-section">
-                <div class="stats" id="stats">
-                    <div class="stat">
-                        <span class="stat-number" id="totalCards">0</span>
-                        <span class="stat-label">Cards</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-number" id="totalCount">0</span>
-                        <span class="stat-label">Total</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-number" id="totalValue">$0</span>
-                        <span class="stat-label">Value</span>
-                    </div>
-                </div>
                 <div class="gallery-header">
-                    <h2><i class="fas fa-database"></i> Your Collection</h2>
-                    <div class="gallery-controls">
-                        <div class="search-tools-group">
-                            <div class="tools-container">
-                                <button class="tools-btn" id="toolsBtn" onclick="toggleToolsMenu()">
-                                    🔧
-                                </button>
-                                <div class="tools-dropdown" id="toolsDropdown">
-                                    <button class="tool-item" onclick="showDatabaseStatus()">
-                                        <i class="fas fa-database"></i> Database Status
-                                    </button>
-
-                                    <button class="tool-item" onclick="showScanHistory()">
-                                        <i class="fas fa-history"></i> Scan History
-                                    </button>
-                                    <button class="tool-item" onclick="showUnknownSetsReview()">
-                                        <i class="fas fa-question-circle"></i> Review Unknown Sets
-                                    </button>
-                                    <button class="tool-item" onclick="showAIPreference()">
-                                        <i class="fas fa-cog"></i> AI Model Preference
-                                    </button>
-                                    <button class="tool-item" onclick="showAILogs()">
-                                        <i class="fas fa-brain"></i> AI Service Logs
-                                    </button>
-                                    <button class="tool-item" onclick="exportCollection()">
-                                        <i class="fas fa-file-export"></i> Export
-                                    </button>
-                                    <!-- More tools can be added here -->
-                                </div>
+                    <div class="search-tools-group">
+                        <h2><i class="fas fa-database"></i> Your Collection</h2>
+                        <button class="tools-btn" id="toolsBtn" onclick="toggleToolsMenu()">
+                            <i class="fas fa-wrench"></i>
+                        </button>
+                        <div class="tools-dropdown" id="toolsDropdown">
+                            <button class="tool-item" onclick="showDatabaseStatus()">
+                                <i class="fas fa-database"></i> Database Status
+                            </button>
+                            <button class="tool-item" onclick="showScanHistory()">
+                                <i class="fas fa-history"></i> Scan History
+                            </button>
+                            <button class="tool-item" onclick="showUnknownSetsReview()">
+                                <i class="fas fa-question-circle"></i> Review Unknown Sets
+                            </button>
+                            <button class="tool-item" onclick="showAIPreference()">
+                                <i class="fas fa-cog"></i> AI Model Preference
+                            </button>
+                            <button class="tool-item" onclick="showAILogs()">
+                                <i class="fas fa-brain"></i> AI Service Logs
+                            </button>
+                            <button class="tool-item" onclick="exportCollection()">
+                                <i class="fas fa-file-export"></i> Export
+                            </button>
+                        </div>
+                        <div class="search-sort-group">
+                            <div class="search-container">
+                                <input type="text" id="searchInput" placeholder="Search cards...">
                             </div>
                             <div class="sort-container">
                                 <button class="sort-btn" id="sortBtn" onclick="toggleSortMenu()">
@@ -139,9 +142,6 @@
                                         <i class="fas fa-tag"></i> Type
                                     </button>
                                 </div>
-                            </div>
-                            <div class="search-container">
-                                <input type="text" id="searchInput" placeholder="Search cards...">
                             </div>
                         </div>
                         <div class="view-toggle">
@@ -364,6 +364,6 @@
         </div>
     </div>
 
-    <script src="/static/script.js?v=2025011311"></script>
+    <script src="/static/script.js?v=2025011313"></script>
 </body>
 </html> 

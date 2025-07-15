@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     initializeCamera();
     initializeSortUI();
+    initializeLogo();
     loadCards();
     loadStats();
     addTestData(); // Add test data with real Magic cards
@@ -632,7 +633,7 @@ function createMiniFannedStack(card, index, filteredCards) {
         </div>
         <div class="card-info">
             <div class="card-name">${card.name}</div>
-            <div class="card-count">$${combinedValue.toFixed(2)} ($${individualValue.toFixed(2)})</div>
+            <div class="card-count">${formatCurrency(combinedValue)} (${formatCurrency(individualValue)})</div>
         </div>
     `;
     
@@ -1223,9 +1224,10 @@ async function loadStats() {
         const stats = await response.json();
         
         // Always show total stats (including examples) to give accurate count
-        document.getElementById('totalCards').textContent = stats.total_cards;
+        const uniqueCount = stats.unique_card_names || stats.total_cards || 0;
+        document.getElementById('totalCards').textContent = uniqueCount;
         document.getElementById('totalCount').textContent = stats.total_count;
-        document.getElementById('totalValue').textContent = `$${stats.total_value_usd.toFixed(2)}`;
+        document.getElementById('totalValue').textContent = formatCurrency(stats.total_value_usd);
     } catch (error) {
         console.error('Error loading stats:', error);
     }
@@ -1343,6 +1345,16 @@ async function addTestData() {
     console.log('Test data loaded');
 }
 
+// Format currency with commas and 2 decimal places
+function formatCurrency(amount, currency = 'USD') {
+    if (currency === 'USD') {
+        return `$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    } else if (currency === 'EUR') {
+        return `€${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+    return amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
 // Calculate condition-adjusted price
 function getConditionAdjustedPrice(basePrice, condition) {
     const multiplier = CONDITION_MULTIPLIERS[condition] || CONDITION_MULTIPLIERS['UNKNOWN'];
@@ -1370,7 +1382,7 @@ function updateStats(data) {
         const adjustedPrice = getConditionAdjustedPrice(card.price_usd || 0, card.condition);
         return sum + (adjustedPrice * (card.count || 0));
     }, 0);
-    totalValueElement.textContent = `$${totalValue.toFixed(2)}`;
+    totalValueElement.textContent = formatCurrency(totalValue);
 }
 
 // Standardized grading options with user-friendly names
@@ -3682,6 +3694,21 @@ function handleFullScanEscape(e) {
 function toggleToolsMenu() {
     const dropdown = document.getElementById('toolsDropdown');
     dropdown.classList.toggle('show');
+
+    // Close the dropdown when clicking outside
+    const closeDropdown = (e) => {
+        if (!e.target.matches('.tools-btn') && !dropdown.contains(e.target)) {
+            dropdown.classList.remove('show');
+            document.removeEventListener('click', closeDropdown);
+        }
+    };
+
+    if (dropdown.classList.contains('show')) {
+        // Add click listener after a small delay to avoid immediate closing
+        setTimeout(() => {
+            document.addEventListener('click', closeDropdown);
+        }, 0);
+    }
 }
 
 // Close tools dropdown when clicking outside
@@ -4902,6 +4929,25 @@ function initializeCamera() {
     }
 }
 
+// Initialize logo with fallback
+function initializeLogo() {
+    const logoImg = document.getElementById('moxLogo');
+    if (logoImg) {
+        logoImg.onerror = function() {
+            // Fallback if logo doesn't load
+            this.style.display = 'none';
+            const logoSection = this.parentElement;
+            logoSection.innerHTML = `
+                <div style="text-align: left; color: #667eea; padding: 20px; width: 146px; height: 204px; border: 2px solid #000; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #f0f0f0;">
+                    <i class="fas fa-magic" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                    <h2 style="margin: 0; font-size: 1.5rem;">MOX</h2>
+                    <p style="margin: 5px 0 0 0; font-size: 0.8rem; opacity: 0.8; text-align: center;">The Magic The Gathering Library</p>
+                </div>
+            `;
+        };
+    }
+}
+
 function handleCameraClick() {
     // Check if Camera API is supported
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -5676,4 +5722,1084 @@ function showNotification(message, type = 'info') {
             }
         }, 300);
     }, 3000);
+}
+
+// Magic Card Kaleidoscope Screensaver
+let screensaverActive = false;
+let idleTimer = null;
+let screensaverCanvas = null;
+let screensaverCtx = null;
+let cardImages = [];
+let cardBackImage = null;
+let moxLogoImage = null;
+let animationId = null;
+let resetIdleTimer = null; // Will be set by startIdleDetection
+
+
+// Initialize screensaver
+function initScreensaver() {
+    console.log('🎨 Initializing screensaver...');
+    
+    // Create canvas element
+    screensaverCanvas = document.createElement('canvas');
+    screensaverCanvas.id = 'screensaver-canvas';
+    screensaverCanvas.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        display: none;
+        cursor: none;
+    `;
+    document.body.appendChild(screensaverCanvas);
+    console.log('🎨 Canvas element created and added to DOM');
+    
+    // Get context
+    screensaverCtx = screensaverCanvas.getContext('2d');
+    console.log('🎨 Canvas context obtained:', screensaverCtx ? 'success' : 'failed');
+    
+    // Set canvas size
+    function resizeCanvas() {
+        screensaverCanvas.width = window.innerWidth;
+        screensaverCanvas.height = window.innerHeight;
+        console.log(`🎨 Canvas resized to ${screensaverCanvas.width}x${screensaverCanvas.height}`);
+    }
+    
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    // Load some default card images for the kaleidoscope
+    loadScreensaverCards();
+    
+    // Start idle detection
+    startIdleDetection();
+}
+
+// Load card images for screensaver
+function loadScreensaverCards() {
+    // Load real card images from backend for infinite screensaver
+    loadScreensaverCardImages();
+    loadCardBackImage();
+    loadMoxLogoImage();
+}
+
+// Load the Magic card back image
+function loadCardBackImage() {
+    console.log('🔄 Attempting to load card back image from /cardback.jpg');
+    cardBackImage = new Image();
+    cardBackImage.crossOrigin = 'anonymous';
+    cardBackImage.onload = () => {
+        console.log('✅ Loaded Magic card back image for screensaver');
+        console.log('📏 Card back image dimensions:', cardBackImage.width, 'x', cardBackImage.height);
+    };
+    cardBackImage.onerror = (error) => {
+        console.log('❌ Failed to load card back image, using placeholder');
+        console.log('❌ Error details:', error);
+        cardBackImage = null; // Will fall back to placeholder
+    };
+    cardBackImage.src = '/static/cardback.jpg';
+}
+
+// Load the MOX logo image for screensaver
+function loadMoxLogoImage() {
+    console.log('🔄 Attempting to load MOX logo image from /mox-logo.png');
+    moxLogoImage = new Image();
+    moxLogoImage.crossOrigin = 'anonymous';
+    moxLogoImage.onload = () => {
+        console.log('✅ Loaded MOX logo image for screensaver');
+        console.log('📏 MOX logo image dimensions:', moxLogoImage.width, 'x', moxLogoImage.height);
+    };
+    moxLogoImage.onerror = (error) => {
+        console.log('❌ Failed to load MOX logo image, will not show in screensaver');
+        console.log('❌ Error details:', error);
+        moxLogoImage = null;
+    };
+    moxLogoImage.src = '/static/mox-logo.png';
+}
+
+ 
+
+// Idle detection and screensaver controls
+function startIdleDetection() {
+    let idleTimeout = null;
+    const IDLE_TIME = 60000; // 60 seconds
+    
+    // Reset idle timer
+    resetIdleTimer = function() {
+        if (idleTimeout) {
+            clearTimeout(idleTimeout);
+        }
+        
+        // Only set new timer if screensaver is not active
+        if (!screensaverActive) {
+            idleTimeout = setTimeout(() => {
+                console.log('🕐 Idle timeout reached, starting screensaver');
+                showScreensaver();
+            }, IDLE_TIME);
+        }
+    };
+    
+    // Activity detection events
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    activityEvents.forEach(event => {
+        document.addEventListener(event, () => {
+            if (screensaverActive) {
+                console.log('👋 Activity detected, hiding screensaver');
+                hideScreensaver();
+            } else {
+                resetIdleTimer();
+            }
+        }, true);
+    });
+    
+    // Listen for CTRL-X to manually trigger screensaver
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'x') {
+            e.preventDefault();
+            if (screensaverActive) {
+                hideScreensaver();
+            } else {
+                showScreensaver();
+            }
+        }
+    });
+    
+    // Listen for ANY key to wake up screensaver
+    document.addEventListener('keydown', function(e) {
+        if (screensaverActive && !(e.ctrlKey && e.key === 'x')) {
+            e.preventDefault();
+            console.log('⌨️ Key pressed, waking up screensaver');
+            hideScreensaver();
+        }
+    });
+    
+    // Start the idle timer
+    resetIdleTimer();
+    console.log('🎯 Idle detection started - screensaver will activate after 60 seconds of inactivity');
+}
+
+
+
+// Hide screensaver
+function hideScreensaver() {
+    if (!screensaverActive) return;
+    
+    // DISABLED: Start exit animation instead of immediately stopping
+    // if (animationState !== 'exit') {
+    //     animationState = 'exit';
+    //     exitStartTime = Date.now();
+    //     initializeExitAnimation();
+    //     console.log('🎬 Starting exit animation');
+    //     return;
+    // }
+    
+    // Immediately hide screensaver
+    screensaverActive = false;
+    screensaverCanvas.style.display = 'none';
+    
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+    
+    // Reset animation state for next time
+    animationState = 'intro';
+    exitStartTime = 0;
+    fallingCards = [];
+    window.cardsFiltered = false;
+    
+    // Restart idle detection when screensaver is hidden
+    if (typeof resetIdleTimer === 'function') {
+        resetIdleTimer();
+    }
+}
+
+// Initialize cards for screensaver
+function initScreensaverCards() {
+    // Reset infinite layout for new session
+    cinematicLayout = null;
+    
+    // Reset MOX card flags for new session
+    window.firstMoxCardShown = false;
+    window.exitFirstMoxCardShown = false;
+    
+    console.log('🎬 Initialized infinite screensaver layout');
+}
+
+// Animation state
+let animationState = 'intro'; // intro, main, transition, exit
+let introStartTime = 0;
+let cinematicLayout = null;
+let exitStartTime = 0;
+let fallingCards = [];
+let cameraVelocity = { x: 0, y: 0, zoom: 0 };
+let lastCameraPosition = { x: 0, y: 0, zoom: 2.0 };
+
+// Animate screensaver
+function animateScreensaver() {
+    if (!screensaverActive) return;
+    
+    const currentTime = Date.now();
+    if (!introStartTime) introStartTime = currentTime;
+    const elapsed = currentTime - introStartTime;
+    
+    // Clear canvas
+    screensaverCtx.clearRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    
+    // Draw background
+    screensaverCtx.fillStyle = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)';
+    screensaverCtx.fillRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    
+    if (animationState === 'intro') {
+        animateIntro(elapsed);
+    } else if (animationState === 'main') {
+        animateMain(elapsed);
+    } else if (animationState === 'transition') {
+        animateTransition(elapsed);
+    } else if (animationState === 'exit') {
+        const exitElapsed = currentTime - exitStartTime;
+        animateExit(exitElapsed);
+    }
+    
+    // Debug: Log frame count every 60 frames
+    if (!window.frameCount) window.frameCount = 0;
+    window.frameCount++;
+    if (window.frameCount % 60 === 0) {
+        console.log(`🎬 Animation frame ${window.frameCount}, state: ${animationState}`);
+    }
+    
+    animationId = requestAnimationFrame(animateScreensaver);
+}
+
+// Initialize exit animation
+function initializeExitAnimation() {
+    if (!cinematicLayout) return;
+    
+    // Store current camera velocity for easing
+    const time = (Date.now() - introStartTime) * 0.001;
+    const scrollSpeed = 4.21875;
+    
+    // Calculate current camera velocity with angled movement
+    const primaryAngle = time * 0.12;
+    const secondaryAngle = time * 0.08;
+    cameraVelocity.x = scrollSpeed * 0.7 + Math.cos(primaryAngle) * 0.1;
+    cameraVelocity.y = scrollSpeed * 0.4 + Math.sin(secondaryAngle) * 0.1;
+    cameraVelocity.zoom = Math.cos(time * 0.2) * 0.06;
+    
+    // Store current camera position with angled movement
+    const maxScrollX = cinematicLayout.cardsPerRow * cinematicLayout.cardWidth;
+    const maxScrollY = cinematicLayout.cardsPerCol * cinematicLayout.cardHeight;
+    
+    const baseX = (time * scrollSpeed * 0.7) % maxScrollX;
+    const baseY = (time * scrollSpeed * 0.4) % maxScrollY;
+    const orbitRadius = Math.min(maxScrollX, maxScrollY) * 0.3;
+    const orbitX = Math.cos(primaryAngle) * orbitRadius;
+    const orbitY = Math.sin(secondaryAngle) * orbitRadius * 0.6;
+    
+    lastCameraPosition.x = (baseX + orbitX) % maxScrollX;
+    lastCameraPosition.y = (baseY + orbitY) % maxScrollY;
+    lastCameraPosition.zoom = 2.0 + Math.sin(time * 0.2) * 0.3;
+    
+    // Initialize cards for falling
+    fallingCards = [];
+    window.cardsFiltered = false; // Reset for new animation
+    
+    // Calculate visible area similar to drawInfiniteCardMat
+    const bufferMultiplier = 2;
+    const visibleStartX = Math.floor(lastCameraPosition.x / cinematicLayout.cardWidth) - Math.ceil(screensaverCanvas.width / cinematicLayout.cardWidth) * bufferMultiplier;
+    const visibleEndX = Math.ceil((lastCameraPosition.x + screensaverCanvas.width) / cinematicLayout.cardWidth) + Math.ceil(screensaverCanvas.width / cinematicLayout.cardWidth) * bufferMultiplier;
+    const visibleStartY = Math.floor(lastCameraPosition.y / cinematicLayout.cardHeight) - Math.ceil(screensaverCanvas.height / cinematicLayout.cardHeight) * bufferMultiplier;
+    const visibleEndY = Math.ceil((lastCameraPosition.y + screensaverCanvas.height) / cinematicLayout.cardHeight) + Math.ceil(screensaverCanvas.height / cinematicLayout.cardHeight) * bufferMultiplier;
+    
+    // Create cards with their world positions (similar to drawInfiniteCardMat)
+    for (let row = visibleStartY; row <= visibleEndY; row++) {
+        for (let col = visibleStartX; col <= visibleEndX; col++) {
+            const cardX = col * cinematicLayout.cardWidth;
+            const cardY = row * cinematicLayout.cardHeight;
+            
+            // Create card data similar to drawInfiniteCardMat logic
+            const wrappedRow = ((row % cinematicLayout.cardsPerCol) + cinematicLayout.cardsPerCol) % cinematicLayout.cardsPerCol;
+            const wrappedCol = ((col % cinematicLayout.cardsPerRow) + cinematicLayout.cardsPerRow) % cinematicLayout.cardsPerRow;
+            const mixedIndex = Math.abs((wrappedRow * 37 + wrappedCol * 73) % cinematicLayout.totalCards);
+            const cardSeed = (wrappedRow * 23 + wrappedCol * 41) % 100;
+            let showAsBack = cardSeed < 15; // 15% chance to show as card back
+            let showAsMoxLogo = false;
+            
+            // First card back is always MOX, then every 4th card back is MOX
+            if (showAsBack) {
+                if (!window.exitFirstMoxCardShown) {
+                    showAsMoxLogo = true;
+                    showAsBack = false;
+                    window.exitFirstMoxCardShown = true;
+                    console.log('🎯 First MOX card in exit animation');
+                } else {
+                    // Every 4th card back is MOX after the first one
+                    const backCount = (wrappedRow * 7 + wrappedCol * 11) % 4;
+                    if (backCount === 0) {
+                        showAsMoxLogo = true;
+                        showAsBack = false;
+                    }
+                }
+            }
+            
+                            fallingCards.push({
+                    worldX: cardX,
+                    worldY: cardY,
+                    x: 0, // Will be set when card starts falling
+                    y: 0, // Will be set when card starts falling
+                    velocityX: 0,
+                    velocityY: 0,
+                    falling: false,
+                    fallStartTime: 0,
+                    cardData: {
+                        index: mixedIndex,
+                        showAsBack: showAsBack,
+                        showAsMoxLogo: showAsMoxLogo
+                    }
+                });
+        }
+    }
+    
+    // Shuffle cards for random fall order
+    for (let i = fallingCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [fallingCards[i], fallingCards[j]] = [fallingCards[j], fallingCards[i]];
+    }
+    
+    console.log(`🎬 Initialized ${fallingCards.length} cards for exit animation`);
+}
+
+// Animate exit sequence - camera eases to stop, cards fall one by one
+function animateExit(elapsed) {
+    if (!cinematicLayout) return;
+    
+    // Clear canvas to transparent - let normal canvas show through
+    screensaverCtx.clearRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    
+    // Camera easing - quickly slow down to a stop
+    const easeProgress = Math.min(1, elapsed / 800); // 800ms ease (faster!)
+    const easeFunction = 1 - Math.pow(1 - easeProgress, 3); // Cubic ease-out
+    
+    // Apply easing to camera velocity
+    const easedVelocityX = cameraVelocity.x * (1 - easeFunction);
+    const easedVelocityY = cameraVelocity.y * (1 - easeFunction);
+    const easedVelocityZoom = cameraVelocity.zoom * (1 - easeFunction);
+    
+    // Update camera position with eased velocity
+    lastCameraPosition.x += easedVelocityX * 0.016; // Approximate 60fps
+    lastCameraPosition.y += easedVelocityY * 0.016;
+    lastCameraPosition.zoom += easedVelocityZoom * 0.016;
+    
+    // Remove off-screen cards immediately after camera stops to reduce processing
+    if (easeProgress >= 1 && !window.cardsFiltered) {
+        window.cardsFiltered = true;
+        const originalCount = fallingCards.length;
+        
+        fallingCards = fallingCards.filter(card => {
+            // Transform to screen coordinates to check visibility
+            const screenX = (card.worldX - lastCameraPosition.x) * lastCameraPosition.zoom + screensaverCanvas.width / 2;
+            const screenY = (card.worldY - lastCameraPosition.y) * lastCameraPosition.zoom + screensaverCanvas.height / 2;
+            
+            // Keep only cards that are at least partially visible
+            return screenX > -cinematicLayout.cardWidth && 
+                   screenX < screensaverCanvas.width + cinematicLayout.cardWidth &&
+                   screenY > -cinematicLayout.cardHeight && 
+                   screenY < screensaverCanvas.height + cinematicLayout.cardHeight;
+        });
+        
+        console.log(`🎬 Filtered cards: ${originalCount} → ${fallingCards.length} (${originalCount - fallingCards.length} removed)`);
+    }
+    
+    // Apply camera transform
+    screensaverCtx.save();
+    screensaverCtx.translate(screensaverCanvas.width / 2, screensaverCanvas.height / 2);
+    screensaverCtx.scale(lastCameraPosition.zoom, lastCameraPosition.zoom);
+    screensaverCtx.translate(-lastCameraPosition.x, -lastCameraPosition.y);
+    
+    // Draw background cards that haven't started falling yet
+    for (const card of fallingCards) {
+        if (!card.falling) {
+            drawCardForScreensaver(card.worldX, card.worldY, card.cardData);
+        }
+    }
+    
+    screensaverCtx.restore();
+    
+    // Start cards falling one by one after camera stops - BLAZING FAST!
+    if (elapsed > 800) { // Start falling immediately after camera stops
+        const fallInterval = 3; // Start a new card falling every 3ms (BLAZING FAST!)
+        const cardsFallingCount = Math.floor((elapsed - 800) / fallInterval);
+        
+        for (let i = 0; i < Math.min(cardsFallingCount, fallingCards.length); i++) {
+            const card = fallingCards[i];
+            if (!card.falling) {
+                card.falling = true;
+                card.fallStartTime = elapsed;
+                
+                // Random push effect - smaller and faster
+                const pushStrength = 30 + Math.random() * 50; // Smaller random upward push
+                const pushAngle = (Math.random() - 0.5) * 0.3; // Smaller random left/right angle
+                
+                card.velocityX = Math.sin(pushAngle) * pushStrength;
+                card.velocityY = -pushStrength; // Upward initial velocity
+                
+                // Transform from world to screen coordinates
+                card.x = (card.worldX - lastCameraPosition.x) * lastCameraPosition.zoom + screensaverCanvas.width / 2;
+                card.y = (card.worldY - lastCameraPosition.y) * lastCameraPosition.zoom + screensaverCanvas.height / 2;
+            }
+        }
+    }
+    
+    // Update and draw falling cards
+    for (const card of fallingCards) {
+        if (card.falling) {
+            const fallElapsed = elapsed - card.fallStartTime;
+            const deltaTime = 0.016; // 60fps
+            
+            // Apply BLAZING fast gravity for instant falling
+            card.velocityY += 2500 * deltaTime; // BLAZING fast gravity acceleration
+            
+            // Update position
+            card.x += card.velocityX * deltaTime;
+            card.y += card.velocityY * deltaTime;
+            
+            // No rotation updates - cards keep their scale
+            
+            // Draw falling card - no rotation, keep scale
+            if (card.y < screensaverCanvas.height + 100) { // Only draw if still visible
+                drawCardForScreensaver(card.x, card.y, card.cardData);
+            }
+        }
+    }
+    
+    // Check if all cards have fallen off screen
+    const allCardsFallen = fallingCards.every(card => 
+        !card.falling || card.y > screensaverCanvas.height + 100
+    );
+    
+    if (allCardsFallen && elapsed > 1000) { // Minimum 1 second for the effect
+        console.log('🎬 Exit animation complete');
+        hideScreensaver(); // Actually hide the screensaver
+    }
+}
+
+// Animate intro sequence - just fade in and start scrolling
+function animateIntro(elapsed) {
+    if (!cinematicLayout) {
+        cinematicLayout = generateInfiniteCardLayout();
+    }
+    
+    // Simple fade in effect - faster since we have longer acceleration
+    const fadeProgress = Math.min(1, elapsed / 1000); // 1 second fade
+    
+    // Clear canvas with fade
+    screensaverCtx.fillStyle = '#000000';
+    screensaverCtx.fillRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    
+    // Start far back and almost motionless, then gradually speed up and zoom in
+    const time = elapsed * 0.001;
+    
+    // Create gradual acceleration curve - starts very slow, speeds up smoothly
+    const accelerationProgress = Math.min(1, elapsed / 3000); // 3 second acceleration
+    const accelerationCurve = accelerationProgress * accelerationProgress; // Quadratic acceleration
+    
+    // Speed starts at almost zero, reaches full speed gradually
+    const targetScrollSpeed = 4.21875;
+    const scrollSpeed = targetScrollSpeed * accelerationCurve;
+    
+    // Zoom starts far back (0.8), gradually zooms in to target (2.0)
+    const startZoom = 0.8;  // Start much further back
+    const targetZoom = 2.0; // Target zoom level
+    const currentZoom = startZoom + (targetZoom - startZoom) * accelerationCurve;
+    
+    const maxScrollX = cinematicLayout.cardsPerRow * cinematicLayout.cardWidth;
+    const maxScrollY = cinematicLayout.cardsPerCol * cinematicLayout.cardHeight;
+    
+    // Create more organic, angled movement during intro - diagonal approach
+    const primaryAngle = time * 0.12; // Slow rotation for changing direction
+    const secondaryAngle = time * 0.08; // Counter-rotation for complexity
+    
+    // Base movement with diagonal bias
+    const baseX = (time * scrollSpeed * 0.7) % maxScrollX; // Slower horizontal
+    const baseY = (time * scrollSpeed * 0.4) % maxScrollY; // Even slower vertical
+    
+    // Add circular/orbital motion for more organic feel
+    const orbitRadius = Math.min(maxScrollX, maxScrollY) * 0.3;
+    const orbitX = Math.cos(primaryAngle) * orbitRadius;
+    const orbitY = Math.sin(secondaryAngle) * orbitRadius * 0.6; // Elliptical
+    
+    // Combine for final angled movement
+    const scrollX = (baseX + orbitX) % maxScrollX;
+    const scrollY = (baseY + orbitY) % maxScrollY;
+    
+    // Add subtle zoom variation once we reach target zoom
+    const zoomVariation = accelerationProgress >= 1 ? Math.sin(time * 0.2) * 0.3 : 0;
+    const zoom = currentZoom + zoomVariation;
+    
+    // Apply camera transform for smooth transition
+    screensaverCtx.save();
+    screensaverCtx.translate(screensaverCanvas.width / 2, screensaverCanvas.height / 2);
+    screensaverCtx.scale(zoom, zoom);
+    screensaverCtx.translate(-scrollX, -scrollY);
+    
+    // Draw the infinite mat with fade
+    if (fadeProgress > 0) {
+        drawInfiniteCardMat(scrollX, scrollY, fadeProgress);
+    }
+    
+    screensaverCtx.restore();
+    
+    // Transition to main animation after acceleration completes
+    if (accelerationProgress >= 1) {
+        animationState = 'main';
+        console.log('🎬 Transitioning to infinite scrolling');
+    }
+}
+
+// Animate main screensaver - infinite scrolling
+function animateMain(elapsed) {
+    const time = elapsed * 0.001;
+    const scrollSpeed = 4.21875; // pixels per second - half the previous speed for more immersive feel
+    
+    // Calculate infinite scrolling position across a much larger area
+    const maxScrollX = cinematicLayout.cardsPerRow * cinematicLayout.cardWidth;
+    const maxScrollY = cinematicLayout.cardsPerCol * cinematicLayout.cardHeight;
+    
+    // Create more organic, angled movement - diagonal sweeps across the card mat
+    const primaryAngle = time * 0.12; // Slow rotation for changing direction
+    const secondaryAngle = time * 0.08; // Counter-rotation for complexity
+    
+    // Base movement with diagonal bias
+    const baseX = (time * scrollSpeed * 0.7) % maxScrollX; // Slower horizontal
+    const baseY = (time * scrollSpeed * 0.4) % maxScrollY; // Even slower vertical
+    
+    // Add circular/orbital motion for more organic feel
+    const orbitRadius = Math.min(maxScrollX, maxScrollY) * 0.3;
+    const orbitX = Math.cos(primaryAngle) * orbitRadius;
+    const orbitY = Math.sin(secondaryAngle) * orbitRadius * 0.6; // Elliptical
+    
+    // Combine for final angled movement
+    const scrollX = (baseX + orbitX) % maxScrollX;
+    const scrollY = (baseY + orbitY) % maxScrollY;
+    
+    // Dynamic zoom - get closer and further from cards
+    const baseZoom = 2.0; // Slightly less zoom to see more cards
+    const zoomVariation = Math.sin(time * 0.2) * 0.3; // Smaller zoom variation
+    const zoom = baseZoom + zoomVariation;
+    
+    // Clear canvas
+    screensaverCtx.fillStyle = '#000000';
+    screensaverCtx.fillRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    
+    // Apply camera transform for infinite scrolling
+    screensaverCtx.save();
+    screensaverCtx.translate(screensaverCanvas.width / 2, screensaverCanvas.height / 2);
+    screensaverCtx.scale(zoom, zoom);
+    screensaverCtx.translate(-scrollX, -scrollY);
+    
+    // Draw the infinite card mat with extended bounds
+    drawInfiniteCardMat(scrollX, scrollY, 1.0);
+    
+    screensaverCtx.restore();
+    
+    // Add subtle cinematic effects
+    drawCinematicEffects(time);
+    
+    // Check if we should restart the cycle (every 300 seconds for much longer viewing)
+    if (elapsed > 300000) {
+        animationState = 'transition';
+        introStartTime = Date.now();
+        console.log('🎬 Starting fade transition');
+    }
+}
+
+// Animate transition - fade to black and restart
+function animateTransition(elapsed) {
+    const fadeDuration = 3000; // 3 seconds
+    const fadeProgress = Math.min(1, elapsed / fadeDuration);
+    
+    // Draw the current state with fading
+    const time = elapsed * 0.001;
+    const scrollSpeed = 4.21875; // Match main animation speed
+    const maxScrollX = cinematicLayout.cardsPerRow * cinematicLayout.cardWidth;
+    const maxScrollY = cinematicLayout.cardsPerCol * cinematicLayout.cardHeight;
+    const scrollX = (time * scrollSpeed) % maxScrollX;
+    const scrollY = (Math.sin(time * 0.1) * 0.5 + 0.5) * maxScrollY;
+    const baseZoom = 2.0;
+    const zoomVariation = Math.sin(time * 0.2) * 0.3;
+    const zoom = baseZoom + zoomVariation;
+    
+    // Clear canvas
+    screensaverCtx.fillStyle = '#000000';
+    screensaverCtx.fillRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    
+    // Apply camera transform
+    screensaverCtx.save();
+    screensaverCtx.translate(screensaverCanvas.width / 2, screensaverCanvas.height / 2);
+    screensaverCtx.scale(zoom, zoom);
+    screensaverCtx.translate(-scrollX, -scrollY);
+    
+    // Draw the infinite card mat with fade out
+    drawInfiniteCardMat(scrollX, scrollY, 1.0 - fadeProgress);
+    
+    screensaverCtx.restore();
+    
+    // Add fade to black overlay
+    screensaverCtx.save();
+    screensaverCtx.fillStyle = `rgba(0, 0, 0, ${fadeProgress})`;
+    screensaverCtx.fillRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    screensaverCtx.restore();
+    
+    // Restart cycle when fade is complete
+    if (fadeProgress >= 1) {
+        animationState = 'intro';
+        introStartTime = Date.now();
+        console.log('🎬 Restarting infinite scrolling cycle');
+    }
+}
+
+// Draw infinite card mat
+function drawInfiniteCardMat(scrollX, scrollY, opacity = 1.0) {
+    if (!cinematicLayout || !cinematicLayout.totalCards) return;
+    
+    const { cardWidth, cardHeight, cardsPerRow, cardsPerCol, totalCards } = cinematicLayout;
+    
+    // Calculate visible area with much larger buffer to extend beyond screen borders
+    const bufferMultiplier = 2; // Increase buffer to ensure cards extend beyond screen
+    const visibleStartX = Math.floor(scrollX / cardWidth) - Math.ceil(screensaverCanvas.width / cardWidth) * bufferMultiplier;
+    const visibleEndX = Math.ceil((scrollX + screensaverCanvas.width) / cardWidth) + Math.ceil(screensaverCanvas.width / cardWidth) * bufferMultiplier;
+    const visibleStartY = Math.floor(scrollY / cardHeight) - Math.ceil(screensaverCanvas.height / cardHeight) * bufferMultiplier;
+    const visibleEndY = Math.ceil((scrollY + screensaverCanvas.height) / cardHeight) + Math.ceil(screensaverCanvas.height / cardHeight) * bufferMultiplier;
+    
+
+    
+    // Draw only visible cards for performance with smooth edge wrapping
+    for (let row = visibleStartY; row <= visibleEndY; row++) {
+        for (let col = visibleStartX; col <= visibleEndX; col++) {
+            // Use actual positions for drawing, but wrap indices for card selection
+            const x = col * cardWidth;
+            const y = row * cardHeight;
+            
+            // Wrap only the indices for card selection, not the positions
+            const wrappedRow = ((row % cardsPerCol) + cardsPerCol) % cardsPerCol;
+            const wrappedCol = ((col % cardsPerRow) + cardsPerRow) % cardsPerRow;
+            
+            // Use a better distribution algorithm to reduce duplicates
+            // Mix row and column with some offset to create more variety
+            const mixedIndex = Math.abs((wrappedRow * 37 + wrappedCol * 73) % totalCards);
+            
+            // Determine card type distribution
+            const cardSeed = (wrappedRow * 23 + wrappedCol * 41) % 100;
+            let showAsBack = cardSeed < 15; // 15% chance to show as card back
+            let showAsMoxLogo = false;
+            
+            // First card back is always MOX, then every 4th card back is MOX
+            if (showAsBack) {
+                if (!window.firstMoxCardShown) {
+                    showAsMoxLogo = true;
+                    showAsBack = false;
+                    window.firstMoxCardShown = true;
+                    console.log('🎯 First MOX card displayed');
+                } else {
+                    // Every 4th card back is MOX after the first one
+                    const backCount = (wrappedRow * 7 + wrappedCol * 11) % 4;
+                    if (backCount === 0) {
+                        showAsMoxLogo = true;
+                        showAsBack = false;
+                    }
+                }
+            }
+            
+            // Draw card
+            if (showAsMoxLogo) {
+                // Draw MOX logo
+                screensaverCtx.save();
+                screensaverCtx.globalAlpha = opacity;
+                
+                if (moxLogoImage && moxLogoImage.complete) {
+                    // Draw MOX logo with black border
+                    screensaverCtx.fillStyle = '#000000';
+                    screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+                    screensaverCtx.drawImage(
+                        moxLogoImage,
+                        x + 2, y + 2, cardWidth - 9, cardHeight - 9
+                    );
+                } else {
+                    // Fallback MOX placeholder
+                    screensaverCtx.fillStyle = '#000000';
+                    screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+                    screensaverCtx.fillStyle = '#667eea';
+                    screensaverCtx.fillRect(x + 2, y + 2, cardWidth - 9, cardHeight - 9);
+                    
+                    // Add MOX text
+                    screensaverCtx.fillStyle = '#FFFFFF';
+                    screensaverCtx.font = 'bold 24px Arial';
+                    screensaverCtx.textAlign = 'center';
+                    screensaverCtx.fillText('MOX', x + (cardWidth-5)/2, y + (cardHeight-5)/2);
+                }
+                screensaverCtx.restore();
+            } else if (showAsBack) {
+                // Draw card back
+                screensaverCtx.save();
+                screensaverCtx.globalAlpha = opacity;
+                
+                if (cardBackImage && cardBackImage.complete) {
+                    // Use actual card back image
+                    if (Math.random() < 0.01) { // Log occasionally to avoid spam
+                        console.log('🎴 Drawing actual card back image at', x, y);
+                    }
+                    screensaverCtx.drawImage(
+                        cardBackImage,
+                        x, y, cardWidth - 5, cardHeight - 5
+                    );
+                } else {
+                    // Fallback card back
+                    if (Math.random() < 0.01) { // Log occasionally to avoid spam
+                        console.log('🎴 Using fallback card back at', x, y, 'cardBackImage:', cardBackImage ? 'exists but not complete' : 'null');
+                    }
+                    screensaverCtx.fillStyle = '#1a1a2e';
+                    screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+                    screensaverCtx.strokeStyle = '#FFD700';
+                    screensaverCtx.lineWidth = 2;
+                    screensaverCtx.strokeRect(x, y, cardWidth - 5, cardHeight - 5);
+                    
+                    // Add Magic logo placeholder
+                    screensaverCtx.fillStyle = '#FFD700';
+                    screensaverCtx.font = 'bold 12px Arial';
+                    screensaverCtx.textAlign = 'center';
+                    screensaverCtx.fillText('MAGIC', x + (cardWidth-5)/2, y + 60);
+                    screensaverCtx.fillText('THE', x + (cardWidth-5)/2, y + 80);
+                    screensaverCtx.fillText('GATHERING', x + (cardWidth-5)/2, y + 100);
+                    
+                    // Add decorative border
+                    screensaverCtx.strokeStyle = '#FFD700';
+                    screensaverCtx.lineWidth = 1;
+                    screensaverCtx.strokeRect(x + 10, y + 10, cardWidth - 25, cardHeight - 25);
+                }
+                screensaverCtx.restore();
+            } else if (cardImages[mixedIndex] && cardImages[mixedIndex].complete) {
+                // Draw card front
+                screensaverCtx.save();
+                screensaverCtx.globalAlpha = opacity;
+                screensaverCtx.drawImage(
+                    cardImages[mixedIndex],
+                    x, y, cardWidth - 5, cardHeight - 5 // Slightly smaller for margin
+                );
+                screensaverCtx.restore();
+            } else {
+                // Placeholder
+                screensaverCtx.save();
+                screensaverCtx.globalAlpha = opacity;
+                screensaverCtx.fillStyle = `hsl(${(mixedIndex * 30) % 360}, 70%, 50%)`;
+                screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+                screensaverCtx.strokeStyle = '#FFD700';
+                screensaverCtx.lineWidth = 2;
+                screensaverCtx.strokeRect(x, y, cardWidth - 5, cardHeight - 5);
+                screensaverCtx.restore();
+            }
+        }
+    }
+}
+
+// Draw individual card for screensaver
+function drawCardForScreensaver(x, y, cardData, opacity = 1.0) {
+    if (!cinematicLayout) return;
+    
+    const { cardWidth, cardHeight } = cinematicLayout;
+    
+    // Determine card type
+    const showAsBack = cardData && cardData.showAsBack;
+    const showAsMoxLogo = cardData && cardData.showAsMoxLogo;
+    
+    screensaverCtx.save();
+    screensaverCtx.globalAlpha = opacity;
+    
+    if (showAsMoxLogo) {
+        // Draw MOX logo
+        if (moxLogoImage && moxLogoImage.complete) {
+            // Draw MOX logo with black border
+            screensaverCtx.fillStyle = '#000000';
+            screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+            screensaverCtx.drawImage(
+                moxLogoImage,
+                x + 2, y + 2, cardWidth - 9, cardHeight - 9
+            );
+        } else {
+            // Fallback MOX placeholder
+            screensaverCtx.fillStyle = '#000000';
+            screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+            screensaverCtx.fillStyle = '#667eea';
+            screensaverCtx.fillRect(x + 2, y + 2, cardWidth - 9, cardHeight - 9);
+            
+            // Add MOX text
+            screensaverCtx.fillStyle = '#FFFFFF';
+            screensaverCtx.font = 'bold 24px Arial';
+            screensaverCtx.textAlign = 'center';
+            screensaverCtx.fillText('MOX', x + (cardWidth-5)/2, y + (cardHeight-5)/2);
+        }
+    } else if (showAsBack) {
+        // Draw card back
+        if (cardBackImage && cardBackImage.complete) {
+            screensaverCtx.drawImage(
+                cardBackImage,
+                x, y, cardWidth - 5, cardHeight - 5
+            );
+        } else {
+            // Fallback card back
+            screensaverCtx.fillStyle = '#1a1a2e';
+            screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+            screensaverCtx.strokeStyle = '#FFD700';
+            screensaverCtx.lineWidth = 2;
+            screensaverCtx.strokeRect(x, y, cardWidth - 5, cardHeight - 5);
+            
+            // Add Magic logo placeholder
+            screensaverCtx.fillStyle = '#FFD700';
+            screensaverCtx.font = 'bold 12px Arial';
+            screensaverCtx.textAlign = 'center';
+            screensaverCtx.fillText('MAGIC', x + (cardWidth-5)/2, y + 60);
+            screensaverCtx.fillText('THE', x + (cardWidth-5)/2, y + 80);
+            screensaverCtx.fillText('GATHERING', x + (cardWidth-5)/2, y + 100);
+            
+            // Add decorative border
+            screensaverCtx.strokeStyle = '#FFD700';
+            screensaverCtx.lineWidth = 1;
+            screensaverCtx.strokeRect(x + 10, y + 10, cardWidth - 25, cardHeight - 25);
+        }
+    } else if (cardData && cardData.index !== undefined && cardImages[cardData.index] && cardImages[cardData.index].complete) {
+        // Draw card front
+        screensaverCtx.drawImage(
+            cardImages[cardData.index],
+            x, y, cardWidth - 5, cardHeight - 5
+        );
+    } else {
+        // Placeholder
+        const colorIndex = cardData ? cardData.index : 0;
+        screensaverCtx.fillStyle = `hsl(${(colorIndex * 30) % 360}, 70%, 50%)`;
+        screensaverCtx.fillRect(x, y, cardWidth - 5, cardHeight - 5);
+        screensaverCtx.strokeStyle = '#FFD700';
+        screensaverCtx.lineWidth = 2;
+        screensaverCtx.strokeRect(x, y, cardWidth - 5, cardHeight - 5);
+    }
+    
+    screensaverCtx.restore();
+}
+
+// Draw cinematic effects
+function drawCinematicEffects(time) {
+    // Add elegant vignette effect with multiple layers for depth
+    const centerX = screensaverCanvas.width / 2;
+    const centerY = screensaverCanvas.height / 2;
+    const maxRadius = Math.max(screensaverCanvas.width, screensaverCanvas.height) * 0.7;
+    
+    // Create main vignette gradient - more prominent
+    const gradient = screensaverCtx.createRadialGradient(
+        centerX, centerY, 0,
+        centerX, centerY, maxRadius
+    );
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(0.3, 'rgba(0, 0, 0, 0.1)');
+    gradient.addColorStop(0.6, 'rgba(0, 0, 0, 0.4)');
+    gradient.addColorStop(0.8, 'rgba(0, 0, 0, 0.7)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
+    
+    // Apply vignette with normal blend mode
+    screensaverCtx.save();
+    screensaverCtx.fillStyle = gradient;
+    screensaverCtx.fillRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    screensaverCtx.restore();
+    
+    // Add stronger edge darkening for dramatic effect
+    const edgeGradient = screensaverCtx.createRadialGradient(
+        centerX, centerY, maxRadius * 0.2,
+        centerX, centerY, maxRadius * 1.3
+    );
+    edgeGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    edgeGradient.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+    edgeGradient.addColorStop(0.8, 'rgba(0, 0, 0, 0.4)');
+    edgeGradient.addColorStop(1, 'rgba(0, 0, 0, 0.8)');
+    
+    screensaverCtx.save();
+    screensaverCtx.fillStyle = edgeGradient;
+    screensaverCtx.fillRect(0, 0, screensaverCanvas.width, screensaverCanvas.height);
+    screensaverCtx.restore();
+    
+    // Add floating particles
+    const particleCount = 15;
+    for (let i = 0; i < particleCount; i++) {
+        const x = Math.sin(time * 0.5 + i * 0.8) * screensaverCanvas.width * 0.4 + screensaverCanvas.width / 2;
+        const y = Math.cos(time * 0.3 + i * 0.6) * screensaverCanvas.height * 0.4 + screensaverCanvas.height / 2;
+        const size = Math.sin(time + i) * 2 + 3;
+        
+        screensaverCtx.save();
+        screensaverCtx.globalAlpha = 0.4;
+        screensaverCtx.fillStyle = `hsl(${(i * 25 + time * 30) % 360}, 80%, 70%)`;
+        screensaverCtx.beginPath();
+        screensaverCtx.arc(x, y, size, 0, Math.PI * 2);
+        screensaverCtx.fill();
+        screensaverCtx.restore();
+    }
+}
+
+// Generate infinite card layout
+function generateInfiniteCardLayout() {
+    const cardWidth = 146;
+    const cardHeight = 204;
+    const margin = 5; // Tighter spacing for infinite mat
+    const effectiveWidth = cardWidth + margin;
+    const effectiveHeight = cardHeight + margin;
+    
+    // Calculate how many cards we have
+    const totalCards = cardImages.length;
+    console.log(`🎬 Generating infinite layout with ${totalCards} card images`);
+    
+    if (totalCards === 0) {
+        console.log('⚠️ No card images available, using fallback layout');
+        return { cardWidth: effectiveWidth, cardHeight: effectiveHeight };
+    }
+    
+    // Create a massive infinite mat - much larger than screen
+    const screenWidth = screensaverCanvas.width;
+    const screenHeight = screensaverCanvas.height;
+    
+    // Calculate how many cards we need to cover the screen plus extra for infinite feel
+    const cardsPerRow = Math.ceil(screenWidth / effectiveWidth) * 5; // 5x screen width for more variety
+    const cardsPerCol = Math.ceil(screenHeight / effectiveHeight) * 5; // 5x screen height for more variety
+    
+    console.log(`🎬 Infinite layout: ${totalCards} unique cards in ${cardsPerRow}x${cardsPerCol} grid`);
+    console.log(`🎬 Mat size: ${cardsPerRow * effectiveWidth}x${cardsPerCol * effectiveHeight} pixels`);
+    console.log(`🎬 Screen size: ${screenWidth}x${screenHeight} pixels`);
+    console.log(`🎬 Cards per screen: ~${Math.ceil(screenWidth / effectiveWidth) * Math.ceil(screenHeight / effectiveHeight)}`);
+    console.log(`🎬 Using improved distribution algorithm to reduce duplicates`);
+    console.log(`🎬 Card flipping animations disabled`);
+    
+    return {
+        cardWidth: effectiveWidth,
+        cardHeight: effectiveHeight,
+        cardsPerRow: cardsPerRow,
+        cardsPerCol: cardsPerCol,
+        totalCards: totalCards
+    };
+}
+
+// Initialize screensaver when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Wait a bit for everything to load
+    setTimeout(initScreensaver, 1000);
+});
+
+// Update: Load real card images from backend for screensaver
+async function loadScreensaverCardImages() {
+    try {
+        console.log('🔄 Fetching card images from backend...');
+        const response = await fetch('/api/collection/card-images?limit=100');
+        console.log('📡 Response status:', response.status);
+        
+        if (!response.ok) {
+            console.error('❌ Failed to fetch card images:', response.status, response.statusText);
+            throw new Error('Failed to fetch card images');
+        }
+        
+        const data = await response.json();
+        console.log('📊 Received data:', data);
+        
+        if (data.cards && data.cards.length > 0) {
+            console.log(`📸 Loading ${data.cards.length} card instances (${data.unique_cards} unique cards)...`);
+            console.log(`📊 Collection mix: ${data.total_instances} total instances`);
+            
+            // Load images into cardImages array
+            cardImages = [];
+            let loaded = 0;
+            let toLoad = data.cards.length;
+            let done = false;
+            
+            return await Promise.all(data.cards.map(card => {
+                return new Promise((resolve) => {
+                    const img = new window.Image();
+                    img.onload = () => {
+                        // Store card info with the image
+                        img.cardName = card.name;
+                        img.cardCount = card.count;
+                        img.cardInstance = card.instance;
+                        cardImages.push(img);
+                        loaded++;
+                        console.log(`✅ Loaded ${card.name} (${card.instance}/${card.count}) - ${loaded}/${toLoad}`);
+                        if (loaded === toLoad && !done) {
+                            done = true;
+                            console.log('🎉 All card images loaded successfully');
+                            resolve();
+                        } else {
+                            resolve();
+                        }
+                    };
+                    img.onerror = () => {
+                        loaded++;
+                        console.log(`❌ Failed to load ${card.name} (${card.instance}/${card.count}) - ${loaded}/${toLoad}`);
+                        if (loaded === toLoad && !done) {
+                            done = true;
+                            console.log('⚠️ Some images failed to load, continuing with loaded ones');
+                            resolve();
+                        } else {
+                            resolve();
+                        }
+                    };
+                    img.src = card.image_url;
+                });
+            }));
+        } else {
+            console.log('⚠️ No card images found in response');
+            throw new Error('No card images available');
+        }
+    } catch (e) {
+        console.error('❌ Error loading card images:', e);
+        // Fallback to placeholder gradients
+        cardImages = [];
+        loadScreensaverCards();
+    }
+}
+
+// Update showScreensaver to use real images
+async function showScreensaver() {
+    if (screensaverActive) return;
+    
+    console.log('🎬 Starting cinematic screensaver...');
+    screensaverActive = true;
+    screensaverCanvas.style.display = 'block';
+    
+    // Reset animation state
+    animationState = 'intro';
+    introStartTime = Date.now();
+    cinematicLayout = null;
+    
+    // Reset MOX card flags for new session
+    window.firstMoxCardShown = false;
+    window.exitFirstMoxCardShown = false;
+    
+    try {
+        // Try to load real card images
+        await loadScreensaverCardImages();
+        console.log(`📊 Loaded ${cardImages.length} card images`);
+        
+        // If no real images, fallback to placeholder gradients
+        if (!cardImages || cardImages.length === 0) {
+            console.log('🔄 Falling back to placeholder cards');
+            loadScreensaverCards();
+        }
+        
+        // Initialize cards for this session
+        initScreensaverCards();
+        
+        // Start animation
+        animateScreensaver();
+        console.log('🎬 Cinematic screensaver animation started');
+    } catch (error) {
+        console.error('❌ Error starting screensaver:', error);
+        // Fallback to placeholder cards
+        loadScreensaverCards();
+        initScreensaverCards();
+        animateScreensaver();
+    }
 }
