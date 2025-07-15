@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magic Card Scanner - Features Showcase</title>
+    <title>MOX - The Magic The Gathering Library</title>
     <style>
         * {
             margin: 0;
@@ -232,6 +232,40 @@
             margin: 20px 0;
         }
 
+        .logo {
+            width: 172px;
+            height: 240px;
+            object-fit: cover;
+            border: 2px solid #000;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .card-examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .card-example {
+            aspect-ratio: 2.5 / 3.5;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .card-example:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-example img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         @media (max-width: 768px) {
             .container {
                 margin: 10px;
@@ -255,8 +289,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎴 Magic Card Scanner</h1>
-            <p>Features Showcase - Visual Guide to Your Digital Collection</p>
+            <img src="/static/mox-logo.png" alt="MOX - The Magic The Gathering Library" class="logo">
+            <h1>MOX</h1>
+            <p>The Magic The Gathering Library - Your Digital Collection Assistant</p>
         </div>
 
         <div class="section">
@@ -275,9 +310,21 @@
                 </ul>
             </div>
 
+            <div class="card-examples">
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/5/c/5c2c2141-8e8c-4639-9350-ba344037a785.jpg" alt="Ashnod's Altar">
+                </div>
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/c/c/cc61e124-3967-4065-9340-6c466f5d8b00.jpg" alt="Badlands">
+                </div>
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/d/f/df5a985c-9c5c-430e-a0dd-ab9435c7744f.jpg" alt="Bayou">
+                </div>
+            </div>
+
             <div class="screenshot-container">
                 <img src="screenshots/main-interface/main-dashboard.png" alt="Main Dashboard" class="screenshot">
-                <div class="screenshot-caption">The main dashboard showing the Magic Card Scanner interface with statistics panel and card collection</div>
+                <div class="screenshot-caption">The main dashboard showing the MOX interface with statistics panel and card collection</div>
             </div>
 
             <div class="feature-card">
@@ -331,6 +378,18 @@
                 </div>
             </div>
 
+            <div class="card-examples">
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/5/7/57645981-a7f3-4851-a470-47b6dee95457.jpg" alt="Birds of Paradise">
+                </div>
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/5/d/5d131784-c1a3-463e-a37b-b720af67ab62.jpg" alt="Black Lotus">
+                </div>
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/b/b/bb9d33fd-52a0-4d8c-b5c3-91c6f0dee89a.jpg" alt="Blightsteel Colossus">
+                </div>
+            </div>
+
             <div class="highlight-box">
                 <strong>🤖 Powered by OpenAI Vision API</strong><br>
                 Advanced AI recognition technology provides accurate card identification and data extraction.
@@ -350,6 +409,21 @@
                     <li><strong>Card Information:</strong> Name, set, and price below each card</li>
                     <li><strong>Count Display:</strong> Shows individual card counts</li>
                 </ul>
+            </div>
+
+            <div class="card-examples">
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/5/8/587cb7de-442f-4eb9-b69d-3f65e30c42c9.jpg" alt="Mox Pearl">
+                </div>
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/6/0/605eeb34-3c55-4e7c-809f-bdba0f43b9be.jpg" alt="Mox Sapphire">
+                </div>
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/5/2/521d1b48-4b50-4d74-8d13-4ad1a3971497.jpg" alt="Mox Ruby">
+                </div>
+                <div class="card-example">
+                    <img src="https://cards.scryfall.io/large/front/6/a/6a4bfe01-fb15-4b84-a49e-b10b45b8b52b.jpg" alt="Mox Emerald">
+                </div>
             </div>
 
             <div class="screenshot-container">
