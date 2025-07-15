@@ -178,4 +178,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Note**: This application is for personal use in tracking your Magic: The Gathering collection. It is not affiliated with Wizards of the Coast. 
+**Note**: This application is for personal use in tracking your Magic: The Gathering collection. It is not affiliated with Wizards of the Coast. # Force redeploy
