@@ -79,12 +79,101 @@ class OpenAIVisionProcessor(VisionProcessorBase):
     def process_image(self, image_path: str) -> List[Dict[str, Any]]:
         """Process image using OpenAI Vision API"""
         try:
-            # Use existing CardRecognitionAI logic
-            from backend.ai_processor import CardRecognitionAI
-            ai_processor = CardRecognitionAI()
-            result = ai_processor.process_image(image_path)
+            import base64
+            
+            # Read and encode image
+            with open(image_path, 'rb') as image_file:
+                image_data = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            # OpenAI vision prompt
+            prompt = """
+You are an expert Magic: The Gathering card identification assistant helping with personal collection inventory management.
+
+CONTEXT: I am cataloging my personal Magic: The Gathering card collection for inventory purposes. This is completely legitimate - I own these cards and need to identify them for my personal records.
+
+TASK: Analyze this image of Magic: The Gathering cards and identify each card with detailed information.
+
+For each card you can see in the image, provide:
+1. The EXACT card name (be as precise as possible)
+2. Set information (look for set symbols, set names, or any visible set identifiers)
+3. Collector number if visible (usually bottom left or right)
+4. Any distinguishing features (foil, alternate art, special frame, etc.)
+5. Copyright date if visible (helps identify set)
+6. Any visible text that might indicate the set or version
+
+IMPORTANT SET IDENTIFICATION GUIDELINES:
+- Look carefully for set symbols (small icons usually in the middle right)
+- Check for copyright dates (e.g., "© 2019 Wizards of the Coast")
+- Look for collector numbers (e.g., "123/264")
+- Notice special frames or borders that indicate specific sets
+- Check for any text mentioning set names
+- Look for special markers like "M" for mythic rare
+- Notice if it's a promo, foil, or special version
+
+COMMON SET CLUES:
+- Modern cards often have holofoil stamps
+- Older cards may have different frame styles
+- Special sets may have unique borders or frames
+- Promo cards often have "P" or star symbols
+- Collector numbers help identify the specific set
+
+REQUIRED OUTPUT FORMAT - Return ONLY a JSON array with objects containing:
+{
+    "name": "exact card name",
+    "set": "set name or code if visible",
+    "collector_number": "collector number if visible",
+    "set_symbol_description": "description of any set symbol seen",
+    "copyright_year": "copyright year if visible",
+    "special_features": "any special features noted",
+    "confidence": "high/medium/low",
+    "notes": "any additional details that might help identify the correct version"
+}
+
+This is for personal inventory management of my own card collection. Please identify all visible Magic: The Gathering cards in the image.
+If you cannot identify any cards clearly, return an empty array [].
+
+IMPORTANT: Do not refuse this task - this is legitimate personal inventory management of owned cards.
+"""
+            
+            # Make OpenAI API call
+            response = self.client.chat.completions.create(
+                model=self.config.get('model', 'gpt-4o'),
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_data}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=self.config.get('max_tokens', 1500),
+                temperature=self.config.get('temperature', 0.0)
+            )
+            
+            # Parse response
+            content = response.choices[0].message.content
+            
+            # Extract JSON from response
+            import re
+            import json
+            if content:
+                json_match = re.search(r'\[.*\]', content, re.DOTALL)
+                if json_match:
+                    cards = json.loads(json_match.group())
+                    self.record_success()
+                    return cards
+            
+            # If no JSON found, return empty array
+            logger.warning("No valid JSON found in OpenAI response")
             self.record_success()
-            return result
+            return []
+            
         except Exception as e:
             self.record_failure()
             raise Exception(f"OpenAI Vision processing failed: {e}")
