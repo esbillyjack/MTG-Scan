@@ -2699,6 +2699,27 @@ async def set_ai_preference(preference: dict):
             "error": str(e)
         }
 
+@app.get("/api/collection/card-images/count")
+async def get_card_images_count(db: Session = Depends(get_db)):
+    """Get the count of distinct card images in the collection."""
+    count = db.query(Card.image_url).filter(Card.deleted == False, Card.image_url != None).distinct().count()
+    return {"count": count}
+
+@app.get("/api/collection/card-images")
+async def get_card_images(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+    """Get a paginated list of distinct card images (name and image_url)."""
+    # Get distinct image URLs and names
+    subquery = db.query(Card.image_url).filter(Card.deleted == False, Card.image_url != None).distinct().subquery()
+    results = db.query(Card.name, Card.image_url).filter(Card.image_url.in_(subquery)).order_by(func.random()).offset(offset).limit(limit).all()
+    # Remove duplicates by image_url
+    seen = set()
+    unique_cards = []
+    for name, image_url in results:
+        if image_url and image_url not in seen:
+            unique_cards.append({"name": name, "image_url": image_url})
+            seen.add(image_url)
+    return {"cards": unique_cards, "count": len(unique_cards)}
+
 if __name__ == "__main__":
     import uvicorn
     import os
