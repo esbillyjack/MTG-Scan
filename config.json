@@ -1,7 +1,7 @@
 {
   "vision_processor": {
     "primary": "openai",
-    "fallback": "google",
+    "fallback": "claude",
     "processors": {
       "openai": {
         "enabled": true,
@@ -11,23 +11,11 @@
         "timeout": 120,
         "max_retries": 3
       },
-      "google": {
+      "claude": {
         "enabled": true,
-        "project_id": "your-project-id",
-        "service_account_file": "path/to/service-account.json",
-        "features": ["TEXT_DETECTION", "OBJECT_LOCALIZATION"]
-      },
-      "azure": {
-        "enabled": false,
-        "endpoint": "https://your-resource.cognitiveservices.azure.com/",
-        "subscription_key": "your-key",
-        "api_version": "2023-02-01-preview"
-      },
-      "local_ocr": {
-        "enabled": true,
-        "tesseract_path": "/usr/bin/tesseract",
-        "languages": ["eng"],
-        "use_openai_text_analysis": true
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 1500,
+        "temperature": 0.0
       }
     }
   },

@@ -89,8 +89,107 @@ class OpenAIVisionProcessor(VisionProcessorBase):
             self.record_failure()
             raise Exception(f"OpenAI Vision processing failed: {e}")
 
+class ClaudeVisionProcessor(VisionProcessorBase):
+    """Claude Vision Processor using Anthropic API"""
+    
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.setup_claude_client()
+    
+    def setup_claude_client(self):
+        """Setup Claude client"""
+        try:
+            import anthropic
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY environment variable required")
+            
+            self.client = anthropic.Anthropic(api_key=api_key)
+        except Exception as e:
+            logger.error(f"Failed to setup Claude client: {e}")
+            logger.warning("Install: pip install anthropic")
+            self.enabled = False
+    
+    def get_name(self) -> str:
+        return "Claude Vision"
+    
+    def process_image(self, image_path: str) -> List[Dict[str, Any]]:
+        """Process image using Claude Vision API"""
+        try:
+            import anthropic
+            import base64
+            
+            # Read and encode image
+            with open(image_path, 'rb') as image_file:
+                image_data = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            # Claude vision prompt
+            prompt = """Analyze this Magic: The Gathering card image and identify each card with detailed information.
+
+For each card you can see, provide:
+1. The EXACT card name
+2. Set information (if visible)
+3. Collector number if visible
+4. Any distinguishing features
+5. Confidence level
+
+Return the results as a JSON array. If no cards can be identified, return an empty array [].
+
+Focus on accuracy - only identify cards you can clearly see and read."""
+            
+            # Make Claude API call
+            response = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=1500,
+                temperature=0.0,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/jpeg",
+                                    "data": image_data
+                                }
+                            }
+                        ]
+                    }
+                ]
+            )
+            
+            # Parse response - handle different response formats
+            try:
+                if hasattr(response, 'content') and response.content:
+                    content = response.content[0].text
+                else:
+                    content = str(response)
+            except:
+                content = str(response)
+            
+            # Extract JSON from response
+            import re
+            import json
+            if content:
+                json_match = re.search(r'\[.*\]', content, re.DOTALL)
+                if json_match:
+                    cards = json.loads(json_match.group())
+                    self.record_success()
+                    return cards
+            
+            # If no JSON found, return empty array
+            logger.warning("No valid JSON found in Claude response")
+            self.record_success()
+            return []
+            
+        except Exception as e:
+            self.record_failure()
+            raise Exception(f"Claude Vision processing failed: {e}")
+
 class GoogleVisionProcessor(VisionProcessorBase):
-    """Google Vision Processor"""
+    """Google Vision Processor with full image analysis"""
     
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
@@ -112,7 +211,7 @@ class GoogleVisionProcessor(VisionProcessorBase):
         return "Google Vision"
     
     def process_image(self, image_path: str) -> List[Dict[str, Any]]:
-        """Process image using Google Vision API"""
+        """Process image using Google Vision API with full analysis"""
         try:
             from google.cloud import vision
             
@@ -122,18 +221,24 @@ class GoogleVisionProcessor(VisionProcessorBase):
             
             image = vision.Image(content=content)
             
-            # Perform text detection
-            response = self.client.text_detection(image=image)
-            texts = response.text_annotations
+            # Perform multiple types of analysis
+            features = [
+                vision.Feature(type_=vision.Feature.Type.TEXT_DETECTION),
+                vision.Feature(type_=vision.Feature.Type.OBJECT_LOCALIZATION),
+                vision.Feature(type_=vision.Feature.Type.LABEL_DETECTION),
+            ]
+            
+            request = vision.AnnotateImageRequest(image=image, features=features)
+            response = self.client.annotate_image(request=request)
             
             if response.error.message:
                 raise Exception(f"Google Vision API error: {response.error.message}")
             
-            # Extract text and try to identify cards
-            detected_text = texts[0].description if texts else ""
+            # Extract comprehensive image data
+            image_analysis = self._extract_image_data(response)
             
-            # Use OpenAI text API to analyze the extracted text
-            cards = self._analyze_text_for_cards(detected_text)
+            # Use OpenAI to analyze the comprehensive image data for card identification
+            cards = self._analyze_vision_data_for_cards(image_analysis)
             
             self.record_success()
             return cards
@@ -141,6 +246,85 @@ class GoogleVisionProcessor(VisionProcessorBase):
         except Exception as e:
             self.record_failure()
             raise Exception(f"Google Vision processing failed: {e}")
+    
+    def _extract_image_data(self, response) -> Dict[str, Any]:
+        """Extract comprehensive data from Google Vision response"""
+        # Extract text
+        text_annotations = response.text_annotations
+        detected_text = text_annotations[0].description if text_annotations else ""
+        
+        # Extract objects
+        objects = []
+        for obj in response.localized_object_annotations:
+            objects.append({
+                "name": obj.name,
+                "confidence": obj.score,
+                "bounding_box": {
+                    "vertices": [(vertex.x, vertex.y) for vertex in obj.bounding_poly.normalized_vertices]
+                }
+            })
+        
+        # Extract labels
+        labels = []
+        for label in response.label_annotations:
+            labels.append({
+                "description": label.description,
+                "confidence": label.score
+            })
+        
+        return {
+            "text": detected_text,
+            "objects": objects,
+            "labels": labels
+        }
+    
+    def _analyze_vision_data_for_cards(self, image_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Analyze comprehensive vision data to identify Magic cards"""
+        try:
+            from openai import OpenAI
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                return []
+            
+            client = OpenAI(api_key=api_key, timeout=30)
+            
+            # Create comprehensive prompt with all vision data
+            prompt = f"""Analyze this comprehensive image analysis data from a Magic: The Gathering card image and identify any cards:
+
+TEXT DETECTED:
+{image_data['text']}
+
+OBJECTS DETECTED:
+{[obj['name'] for obj in image_data['objects']]}
+
+LABELS DETECTED:
+{[label['description'] for label in image_data['labels']]}
+
+Based on this multi-modal analysis, identify any Magic: The Gathering cards present. Return a JSON array of cards found with name, set (if identifiable), and confidence level.
+If no cards can be identified, return an empty array []."""
+            
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000,
+                temperature=0.0
+            )
+            
+            content = response.choices[0].message.content
+            
+            # Parse JSON response
+            import re
+            import json
+            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+            if json_match:
+                cards = json.loads(json_match.group())
+                return cards
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Vision data analysis failed: {e}")
+            return []
     
     def _analyze_text_for_cards(self, text: str) -> List[Dict[str, Any]]:
         """Analyze extracted text to identify Magic cards"""
@@ -308,6 +492,10 @@ class VisionProcessorFactory:
         # Setup OpenAI processor
         if "openai" in processor_configs:
             self.processors["openai"] = OpenAIVisionProcessor(processor_configs["openai"])
+        
+        # Setup Claude processor
+        if "claude" in processor_configs:
+            self.processors["claude"] = ClaudeVisionProcessor(processor_configs["claude"])
         
         # Setup Google Vision processor
         if "google" in processor_configs:

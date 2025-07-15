@@ -11,8 +11,11 @@ aiofiles==23.2.0
 pandas==2.1.4
 openpyxl==3.1.5
 
+# Vision processor dependencies
+anthropic==0.32.0
+
 # Optional vision processor dependencies
-# Uncomment as needed for alternative vision processors
+# Uncomment as needed for additional vision processors
 
 # Google Cloud Vision API
 # google-cloud-vision==3.4.4
