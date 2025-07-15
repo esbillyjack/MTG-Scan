@@ -175,6 +175,22 @@ async def test_vision_api():
     except Exception as e:
         return {"success": False, "error": f"Unexpected error: {str(e)}"}
 
+@app.get("/api/vision/status")
+async def get_vision_processor_status():
+    """Get status of all vision processors"""
+    try:
+        from backend.vision_processor_factory import get_vision_processor_factory
+        factory = get_vision_processor_factory()
+        
+        return {
+            "success": True,
+            "current_processor": factory.get_current_processor_name(),
+            "processors": factory.get_processor_status(),
+            "config": factory.config
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get vision processor status: {str(e)}"}
+
 # Railway Volume Support - Add after imports
 def get_uploads_path():
     """Get uploads directory path - Railway Volume or local"""

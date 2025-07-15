@@ -1,0 +1,39 @@
+{
+  "vision_processor": {
+    "primary": "openai",
+    "fallback": "google",
+    "processors": {
+      "openai": {
+        "enabled": true,
+        "model": "gpt-4o",
+        "max_tokens": 1500,
+        "temperature": 0.0,
+        "timeout": 120,
+        "max_retries": 3
+      },
+      "google": {
+        "enabled": true,
+        "project_id": "your-project-id",
+        "service_account_file": "path/to/service-account.json",
+        "features": ["TEXT_DETECTION", "OBJECT_LOCALIZATION"]
+      },
+      "azure": {
+        "enabled": false,
+        "endpoint": "https://your-resource.cognitiveservices.azure.com/",
+        "subscription_key": "your-key",
+        "api_version": "2023-02-01-preview"
+      },
+      "local_ocr": {
+        "enabled": true,
+        "tesseract_path": "/usr/bin/tesseract",
+        "languages": ["eng"],
+        "use_openai_text_analysis": true
+      }
+    }
+  },
+  "failover": {
+    "auto_switch_on_failure": true,
+    "retry_primary_after_minutes": 30,
+    "log_processor_switches": true
+  }
+} 

@@ -9,6 +9,7 @@ import time
 import logging
 from datetime import datetime
 from backend.set_symbol_validator import SetSymbolValidator
+from backend.vision_processor_factory import get_vision_processor_factory
 
 load_dotenv()
 
@@ -462,7 +463,17 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
     
     def process_image(self, image_path: str) -> List[Dict[str, Any]]:
         """Process an image and return validated card identifications with confidence scores"""
-        raw_results = self.identify_cards(image_path)
+        
+        # Try using the vision processor factory first
+        try:
+            factory = get_vision_processor_factory()
+            raw_results = factory.process_image(image_path)
+            logger.info(f"✅ Using vision processor: {factory.get_current_processor_name()}")
+        except Exception as e:
+            logger.error(f"❌ Vision processor factory failed: {e}")
+            logger.info("🔄 Falling back to direct OpenAI processing...")
+            # Fall back to direct OpenAI processing
+            raw_results = self.identify_cards(image_path)
         
         # Filter and validate results
         validated_cards = []
