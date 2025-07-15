@@ -19,10 +19,10 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from backend.database import get_db, init_db, Card, Scan, ScanImage, ScanResult
+from database import get_db, init_db, Card, Scan, ScanImage, ScanResult
 # CardRecognitionAI import removed - using vision processor factory instead
-from backend.price_api import ScryfallAPI
-from backend.image_quality_validator import ImageQualityValidator
+from price_api import ScryfallAPI
+from image_quality_validator import ImageQualityValidator
 import requests
 import time
 
@@ -187,7 +187,7 @@ async def test_vision_api():
 async def get_vision_processor_status():
     """Get status of all vision processors"""
     try:
-        from backend.vision_processor_factory import get_vision_processor_factory
+        from vision_processor_factory import get_vision_processor_factory
         factory = get_vision_processor_factory()
         
         return {
@@ -262,7 +262,7 @@ init_db()
 
 # Initialize vision processor factory
 try:
-    from backend.vision_processor_factory import get_vision_processor_factory
+    from vision_processor_factory import get_vision_processor_factory
     vision_factory = get_vision_processor_factory()
     logger.info(f"🎯 Vision processor factory initialized - Primary: {vision_factory.get_current_processor_name()}")
 except Exception as e:
@@ -2270,7 +2270,7 @@ async def migrate_from_local():
         
         # This would need the local database file to be uploaded first
         # For now, return the current database info
-        from backend.database import engine
+        from database import engine
         
         # Get database connection info
         db_url = str(engine.url)
@@ -2288,7 +2288,7 @@ async def migrate_from_local():
 async def get_database_info():
     """Get current database connection information"""
     try:
-        from backend.database import engine
+        from database import engine
         from sqlalchemy import text
         
         db_url = str(engine.url)
@@ -2624,6 +2624,11 @@ async def set_ai_preference(preference: dict):
         # Write updated config
         with open("config.json", "w") as f:
             json.dump(config, f, indent=2)
+        
+        # Reload the vision processor factory configuration
+        from vision_processor_factory import get_vision_processor_factory
+        factory = get_vision_processor_factory()
+        factory.reload_config()
         
         logger.info(f"✅ AI preference updated to: {new_primary}")
         

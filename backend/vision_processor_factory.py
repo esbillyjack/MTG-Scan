@@ -730,6 +730,22 @@ class VisionProcessorFactory:
                 "last_failure": processor.last_failure_time.isoformat() if processor.last_failure_time else None
             }
         return status
+    
+    def reload_config(self):
+        """Reload configuration and update current processor"""
+        logger.info("🔄 Reloading vision processor configuration...")
+        
+        # Reload config from file
+        self.config = self._load_config()
+        
+        # Update current processor based on new config
+        primary_name = self.config["vision_processor"]["primary"]
+        if primary_name in self.processors and self.processors[primary_name].is_available():
+            self.current_processor = self.processors[primary_name]
+            logger.info(f"✅ Updated primary vision processor to: {primary_name}")
+            print(f"🔄 SWITCHED TO {primary_name.upper()} AS PRIMARY AI MODEL")
+        else:
+            logger.warning(f"❌ Primary processor {primary_name} not available, keeping current: {self.current_processor.get_name() if self.current_processor else 'None'}")
 
 # Global factory instance
 _factory = None
