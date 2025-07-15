@@ -13,8 +13,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
 
 try:
-    from ai_processor import AIProcessor
-    from database import Database
+    from ai_processor import CardRecognitionAI
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure you're running from the project root directory")
@@ -59,7 +58,7 @@ def debug_image_processing(image_path):
     # Step 3: Initialize AI processor
     print(f"\n🔄 STEP 3: Initializing AI processor...")
     try:
-        ai_processor = AIProcessor()
+        ai_processor = CardRecognitionAI()
         print(f"✅ AI processor initialized")
         print(f"🔑 API key configured: {ai_processor.client.api_key[:10]}...")
     except Exception as e:
