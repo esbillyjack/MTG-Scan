@@ -103,13 +103,13 @@ def migrate_all_images():
         return False
     
     # Confirm migration
-    print(f"\n📤 Ready to migrate {len(images)} images to Railway volumes")
-    print(f"🎯 Target: {RAILWAY_URL}")
+    # print(f"\n📤 Ready to migrate {len(images)} images to Railway volumes")
+    # print(f"🎯 Target: {RAILWAY_URL}")
     
-    confirm = input("\nProceed with migration? (y/N): ").lower().strip()
-    if confirm != 'y':
-        print("❌ Migration cancelled")
-        return False
+    # confirm = input("\nProceed with migration? (y/N): ").lower().strip()
+    # if confirm != 'y':
+    #     print("❌ Migration cancelled")
+    #     return False
     
     # Migrate images
     successful = 0
