@@ -23,6 +23,8 @@ from backend.database import get_db, init_db, Card, Scan, ScanImage, ScanResult
 from backend.ai_processor import CardRecognitionAI
 from backend.price_api import ScryfallAPI
 from backend.image_quality_validator import ImageQualityValidator
+import requests
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +47,62 @@ def get_condition_adjusted_price(base_price: float, condition: str) -> float:
     """Calculate condition-adjusted price"""
     multiplier = CONDITION_MULTIPLIERS.get(condition, CONDITION_MULTIPLIERS['UNKNOWN'])
     return base_price * multiplier
+
+@app.get("/test/openai")
+async def test_openai_connectivity():
+    """Test OpenAI API connectivity from Railway"""
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {"success": False, "error": "OPENAI_API_KEY not found"}
+        
+        start_time = time.time()
+        
+        # Simple text completion test
+        response = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': 'gpt-4o',
+                'messages': [
+                    {'role': 'user', 'content': 'What is 2+2? Answer in one word.'}
+                ],
+                'max_tokens': 10,
+                'temperature': 0.0
+            },
+            timeout=30
+        )
+        
+        elapsed_time = time.time() - start_time
+        
+        if response.status_code == 200:
+            data = response.json()
+            answer = data['choices'][0]['message']['content']
+            return {
+                "success": True,
+                "response_time": elapsed_time,
+                "answer": answer,
+                "api_key_prefix": api_key[:10] + "...",
+                "environment": os.getenv("ENV_MODE", "unknown")
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"HTTP {response.status_code}: {response.text}",
+                "response_time": elapsed_time
+            }
+            
+    except requests.exceptions.ConnectTimeout:
+        return {"success": False, "error": "Connection timeout to OpenAI API"}
+    except requests.exceptions.ReadTimeout:
+        return {"success": False, "error": "Read timeout from OpenAI API"}
+    except requests.exceptions.ConnectionError as e:
+        return {"success": False, "error": f"Connection error: {str(e)}"}
+    except Exception as e:
+        return {"success": False, "error": f"Unexpected error: {str(e)}"}
 
 # Railway Volume Support - Add after imports
 def get_uploads_path():
