@@ -2335,6 +2335,7 @@ async function startScanProcessingWithRetry(scanId, maxRetries = 3) {
 // Start scan processing
 async function startScanProcessing(scanId) {
     try {
+        console.log('🚀 Starting AI card identification...');
         const response = await fetch(`/scan/${scanId}/process`, {
             method: 'POST'
         });

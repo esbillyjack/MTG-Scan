@@ -659,7 +659,9 @@ class VisionProcessorFactory:
             raise Exception("No vision processors available")
         
         try:
-            logger.info(f"🔍 Processing image with {self.current_processor.get_name()}")
+            processor_name = self.current_processor.get_name()
+            logger.info(f"🔍 Processing image with {processor_name}")
+            print(f"🤖 USING {processor_name.upper()} FOR CARD IDENTIFICATION")
             result = self.current_processor.process_image(image_path)
             return result
             
