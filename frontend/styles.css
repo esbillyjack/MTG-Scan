@@ -1122,7 +1122,7 @@ body {
 
 .tools-dropdown {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 5px);
     right: 0;
     background: white;
     border: 1px solid #ddd;
@@ -5340,6 +5340,12 @@ input:checked + .slider:before {
         margin-left: 0;
         margin-top: 5px;
     }
+}
+
+/* Position container for wrench button and dropdown */
+.tools-btn-container {
+    position: relative;
+    display: inline-flex;
 }
 
 
