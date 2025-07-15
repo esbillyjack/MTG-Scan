@@ -104,6 +104,77 @@ async def test_openai_connectivity():
     except Exception as e:
         return {"success": False, "error": f"Unexpected error: {str(e)}"}
 
+@app.get("/test/vision")
+async def test_vision_api():
+    """Test OpenAI Vision API with a small test image"""
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {"success": False, "error": "OPENAI_API_KEY not found"}
+        
+        # Create a minimal test image (1x1 pixel PNG in base64)
+        test_image_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU8J5gAAAABJRU5ErkJggg=="
+        
+        start_time = time.time()
+        
+        # Vision API test
+        response = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': 'gpt-4o',
+                'messages': [
+                    {
+                        'role': 'user',
+                        'content': [
+                            {'type': 'text', 'text': 'What color is this image?'},
+                            {
+                                'type': 'image_url',
+                                'image_url': {
+                                    'url': f'data:image/png;base64,{test_image_b64}'
+                                }
+                            }
+                        ]
+                    }
+                ],
+                'max_tokens': 20,
+                'temperature': 0.0
+            },
+            timeout=60
+        )
+        
+        elapsed_time = time.time() - start_time
+        
+        if response.status_code == 200:
+            data = response.json()
+            answer = data['choices'][0]['message']['content']
+            return {
+                "success": True,
+                "response_time": elapsed_time,
+                "answer": answer,
+                "image_size": len(test_image_b64),
+                "environment": os.getenv("ENV_MODE", "unknown")
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"HTTP {response.status_code}: {response.text}",
+                "response_time": elapsed_time,
+                "image_size": len(test_image_b64)
+            }
+            
+    except requests.exceptions.ConnectTimeout:
+        return {"success": False, "error": "Connection timeout to OpenAI API"}
+    except requests.exceptions.ReadTimeout:
+        return {"success": False, "error": "Read timeout from OpenAI API"}
+    except requests.exceptions.ConnectionError as e:
+        return {"success": False, "error": f"Connection error: {str(e)}"}
+    except Exception as e:
+        return {"success": False, "error": f"Unexpected error: {str(e)}"}
+
 # Railway Volume Support - Add after imports
 def get_uploads_path():
     """Get uploads directory path - Railway Volume or local"""
