@@ -153,6 +153,9 @@ If you cannot identify any cards clearly, return an empty array [].
 IMPORTANT: Do not refuse this task - this is legitimate personal inventory management of owned cards.
 """
             
+            # Store the prompt for logging
+            self.last_prompt = prompt
+            
             # Make OpenAI API call
             logger.info(f"🚀 OpenAI Vision: Making API call to {self.config.get('model', 'gpt-4o')}")
             api_start_time = time.time()
@@ -181,9 +184,13 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
                 api_time = time.time() - api_start_time
                 logger.info(f"✅ OpenAI Vision: API call successful in {api_time:.2f}s")
                 
+                # Store the response for logging
+                self.last_response = response.choices[0].message.content
+                
             except Exception as api_error:
                 api_time = time.time() - api_start_time
                 logger.error(f"❌ OpenAI Vision: API call failed after {api_time:.2f}s: {api_error}")
+                self.last_response = f"Error: {str(api_error)}"
                 raise api_error
             
             # Parse response
@@ -272,6 +279,9 @@ Return the results as a JSON array. If no cards can be identified, return an emp
 
 Focus on accuracy - only identify cards you can clearly see and read."""
             
+            # Store the prompt for logging
+            self.last_prompt = prompt
+            
             # Make Claude API call
             response = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
@@ -294,6 +304,15 @@ Focus on accuracy - only identify cards you can clearly see and read."""
                     }
                 ]
             )
+            
+            # Store the response for logging
+            try:
+                if hasattr(response, 'content') and response.content:
+                    self.last_response = response.content[0].text
+                else:
+                    self.last_response = str(response)
+            except:
+                self.last_response = str(response)
             
             # Parse response - handle different response formats
             try:
@@ -653,7 +672,7 @@ class VisionProcessorFactory:
                     logger.warning(f"🔄 Using fallback processor: {name}")
                     break
     
-    def process_image(self, image_path: str) -> List[Dict[str, Any]]:
+    def process_image(self, image_path: str, scan_id: int = None) -> List[Dict[str, Any]]:
         """Process image with automatic failover"""
         if not self.current_processor:
             raise Exception("No vision processors available")
@@ -662,7 +681,31 @@ class VisionProcessorFactory:
             processor_name = self.current_processor.get_name()
             logger.info(f"🔍 Processing image with {processor_name}")
             print(f"🤖 USING {processor_name.upper()} FOR CARD IDENTIFICATION")
+            
+            # Get the prompt and response from the processor
             result = self.current_processor.process_image(image_path)
+            
+            # Log the interaction if we have a scan_id
+            if scan_id:
+                try:
+                    # Import the logging function
+                    from app import log_ai_interaction
+                    
+                    # Get the prompt and response from the processor
+                    prompt = getattr(self.current_processor, 'last_prompt', 'Prompt not captured')
+                    response = getattr(self.current_processor, 'last_response', str(result))
+                    
+                    # Log the interaction
+                    log_ai_interaction(
+                        scan_id=scan_id,
+                        model_name=processor_name,
+                        prompt=prompt,
+                        response=response,
+                        image_filename=os.path.basename(image_path)
+                    )
+                except Exception as log_error:
+                    logger.error(f"Failed to log AI interaction: {log_error}")
+            
             return result
             
         except Exception as e:

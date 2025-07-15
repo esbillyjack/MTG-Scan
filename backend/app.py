@@ -1296,7 +1296,7 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                 # Process image with vision processor factory
                 if vision_factory:
                     logger.info(f"🤖 VISION PROCESSING: Starting analysis with {vision_factory.get_current_processor_name()}...")
-                    card_results = vision_factory.process_image(scan_image.file_path)
+                    card_results = vision_factory.process_image(scan_image.file_path, scan_id=scan_id)
                     logger.info(f"✅ VISION COMPLETE: Found {len(card_results)} cards using {vision_factory.get_current_processor_name()}")
                     
                     # Create scan results for each identified card
@@ -2045,46 +2045,77 @@ async def get_ai_errors():
     else:
         return {"has_errors": False}
 
+def log_ai_interaction(scan_id: int, model_name: str, prompt: str, response: str, error: str = None, image_filename: str = None):
+    """Log comprehensive AI interaction to a dedicated file"""
+    try:
+        log_file = "logs/ai_full.log"
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        
+        log_entry = f"""
+{'='*80}
+[{timestamp}] SCAN_ID={scan_id} | MODEL={model_name.upper()}
+{'='*80}
+
+IMAGE: {image_filename or 'Unknown'}
+
+PROMPT:
+{prompt}
+
+RESPONSE:
+{response}
+
+"""
+        
+        if error:
+            log_entry += f"""
+ERROR:
+{error}
+
+"""
+        
+        log_entry += f"{'='*80}\n\n"
+        
+        # Ensure logs directory exists
+        os.makedirs("logs", exist_ok=True)
+        
+        # Append to log file
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(log_entry)
+            
+    except Exception as e:
+        logger.error(f"Failed to write AI interaction log: {e}")
+
 @app.get("/debug/ai-logs-full")
 async def get_ai_logs_full():
-    """Get complete AI service logs"""
-    import logging
-    import io
-    
+    """Get complete AI service logs from the dedicated log file"""
     try:
-        # Get the logger and its handlers
-        ai_logger = logging.getLogger('ai_processor')
-        app_logger = logging.getLogger(__name__)
+        log_file = "logs/ai_full.log"
         
-        logs_content = []
+        if not os.path.exists(log_file):
+            return {
+                "success": True,
+                "logs": "No AI interaction logs found yet.\n\nLogs will appear here after the first card scan.",
+                "timestamp": datetime.utcnow().isoformat()
+            }
         
-        # Add vision processor information
-        if vision_factory:
-            logs_content.append("=== VISION PROCESSOR STATUS ===")
-            current_processor = vision_factory.get_current_processor_name()
-            processor_status = vision_factory.get_processor_status()
-            
-            logs_content.append(f"Current Processor: {current_processor}")
-            logs_content.append(f"Available Processors: {list(processor_status.keys())}")
-            
-            for processor_name, status in processor_status.items():
-                logs_content.append(f"\n--- {processor_name.upper()} ---")
-                logs_content.append(f"Enabled: {status.get('enabled', False)}")
-                logs_content.append(f"Available: {status.get('available', False)}")
-                logs_content.append(f"Failure Count: {status.get('failure_count', 0)}")
-                logs_content.append(f"Last Failure: {status.get('last_failure', 'None')}")
-            
-            logs_content.append("\n=== SYSTEM INFORMATION ===")
-            logs_content.append(f"Server Time: {datetime.utcnow()}")
-            logs_content.append(f"Python Logger Level: {logging.getLogger().level}")
-            
-        else:
-            logs_content.append("Vision Processor Factory not available")
+        # Read the last 1000 lines to avoid overwhelming the UI
+        with open(log_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        
+        # Get the last 1000 lines (or all if less than 1000)
+        recent_lines = lines[-1000:] if len(lines) > 1000 else lines
+        
+        logs_content = "".join(recent_lines)
+        
+        if len(lines) > 1000:
+            logs_content = f"[Showing last 1000 lines of {len(lines)} total lines]\n\n" + logs_content
         
         return {
             "success": True,
-            "logs": "\n".join(logs_content),
-            "timestamp": datetime.utcnow().isoformat()
+            "logs": logs_content,
+            "timestamp": datetime.utcnow().isoformat(),
+            "total_lines": len(lines),
+            "showing_lines": len(recent_lines)
         }
         
     except Exception as e:
