@@ -42,7 +42,12 @@ class CardRecognitionAI:
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         
-        self.client = OpenAI(api_key=api_key)
+        # Configure OpenAI client with better timeout and retry settings for Railway
+        self.client = OpenAI(
+            api_key=api_key,
+            timeout=120.0,  # Increase timeout to 2 minutes for Railway
+            max_retries=5,  # Increase retries for Railway network issues
+        )
         self.last_api_call = 0
         self.min_call_interval = 1  # Minimum seconds between API calls
         self.symbol_validator = SetSymbolValidator()  # Initialize set symbol validator
@@ -175,27 +180,43 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             logger.info(f"🤖 Making OpenAI API call (model: gpt-4o)")
             logger.info(f"📊 Image size: {len(base64_image)} base64 characters")
             
-            # Make the API call
-            response = self.client.chat.completions.create(
-                model="gpt-4o",  # Use current vision model
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
+            # Make the API call with Railway-specific retry logic
+            max_attempts = 3
+            base_delay = 2  # Base delay in seconds
+            
+            for attempt in range(max_attempts):
+                try:
+                    response = self.client.chat.completions.create(
+                        model="gpt-4o",  # Use current vision model
+                        messages=[
                             {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
-                                }
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}"
+                                        }
+                                    }
+                                ]
                             }
-                        ]
-                    }
-                ],
-                max_tokens=1500,
-                temperature=0.0,  # Make completely deterministic
-                seed=42  # Add seed for reproducibility
-            )
+                        ],
+                        max_tokens=1500,
+                        temperature=0.0,  # Make completely deterministic
+                        seed=42  # Add seed for reproducibility
+                    )
+                    break  # Success - exit retry loop
+                except Exception as e:
+                    if attempt < max_attempts - 1:  # Not the last attempt
+                        if "Connection error" in str(e) or "timeout" in str(e).lower():
+                            delay = base_delay * (2 ** attempt)  # Exponential backoff
+                            logger.warning(f"🔄 Railway connection issue (attempt {attempt + 1}/{max_attempts}). Retrying in {delay} seconds...")
+                            logger.warning(f"Error: {e}")
+                            time.sleep(delay)
+                            continue
+                    # Last attempt or non-connection error - re-raise
+                    raise
             
             # Parse the response
             content = response.choices[0].message.content
