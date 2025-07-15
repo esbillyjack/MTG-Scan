@@ -13,9 +13,17 @@ from backend.vision_processor_factory import get_vision_processor_factory
 
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with debug level for OpenAI troubleshooting
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Enable debug logging for OpenAI client
+openai_logger = logging.getLogger('openai')
+openai_logger.setLevel(logging.DEBUG)
+
+# Enable debug logging for requests/urllib3 (for HTTP connection details)
+requests_logger = logging.getLogger('urllib3')
+requests_logger.setLevel(logging.DEBUG)
 
 class APIError:
     """Structure for API error information"""

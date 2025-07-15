@@ -57,18 +57,30 @@ class OpenAIVisionProcessor(VisionProcessorBase):
         self.setup_openai_client()
     
     def setup_openai_client(self):
-        """Setup OpenAI client"""
+        """Setup OpenAI client with debug logging"""
         try:
             from openai import OpenAI
+            import logging
+            
+            # Enable debug logging for OpenAI client
+            logging.basicConfig(level=logging.DEBUG)
+            openai_logger = logging.getLogger('openai')
+            openai_logger.setLevel(logging.DEBUG)
+            
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable required")
+            
+            logger.info(f"🔧 Setting up OpenAI client with debug logging...")
+            logger.info(f"🔑 API key prefix: {api_key[:15]}...")
             
             self.client = OpenAI(
                 api_key=api_key,
                 timeout=self.config.get('timeout', 120),
                 max_retries=self.config.get('max_retries', 3)
             )
+            
+            logger.info(f"✅ OpenAI client setup complete")
         except Exception as e:
             logger.error(f"Failed to setup OpenAI client: {e}")
             self.enabled = False

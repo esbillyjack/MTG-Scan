@@ -26,9 +26,17 @@ from backend.image_quality_validator import ImageQualityValidator
 import requests
 import time
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with debug level for OpenAI troubleshooting
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Enable debug logging for OpenAI client
+openai_logger = logging.getLogger('openai')
+openai_logger.setLevel(logging.DEBUG)
+
+# Enable debug logging for requests/urllib3 (for HTTP connection details)
+requests_logger = logging.getLogger('urllib3')
+requests_logger.setLevel(logging.DEBUG)
 
 # Initialize FastAPI app
 app = FastAPI(title="Magic Card Scanner", version="1.0.0")
