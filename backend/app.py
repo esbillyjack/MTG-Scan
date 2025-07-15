@@ -2045,7 +2045,7 @@ async def get_ai_errors():
     else:
         return {"has_errors": False}
 
-def log_ai_interaction(scan_id: int, model_name: str, prompt: str, response: str, error: str = None, image_filename: str = None):
+def log_ai_interaction(scan_id: int, model_name: str, interaction_data: dict):
     """Log comprehensive AI interaction to a dedicated file"""
     try:
         log_file = "logs/ai_full.log"
@@ -2056,20 +2056,43 @@ def log_ai_interaction(scan_id: int, model_name: str, prompt: str, response: str
 [{timestamp}] SCAN_ID={scan_id} | MODEL={model_name.upper()}
 {'='*80}
 
-IMAGE: {image_filename or 'Unknown'}
+IMAGE: {interaction_data.get('image_filename', 'Unknown')}
+API_KEY_STATUS: {interaction_data.get('api_key_status', 'Unknown')}
+CLIENT_SETUP: {interaction_data.get('client_setup', 'Unknown')}
+
+CONNECTION DETAILS:
+- Model: {interaction_data.get('model', 'Unknown')}
+- Max Tokens: {interaction_data.get('max_tokens', 'Unknown')}
+- Temperature: {interaction_data.get('temperature', 'Unknown')}
+- Image Size: {interaction_data.get('image_size', 'Unknown')} chars
+
+API CALL:
+- Start Time: {interaction_data.get('api_start_time', 'Unknown')}
+- End Time: {interaction_data.get('api_end_time', 'Unknown')}
+- Duration: {interaction_data.get('api_duration', 'Unknown')}s
+- Status: {interaction_data.get('api_status', 'Unknown')}
 
 PROMPT:
-{prompt}
+{interaction_data.get('prompt', 'No prompt captured')}
 
 RESPONSE:
-{response}
+{interaction_data.get('response', 'No response captured')}
 
 """
         
-        if error:
+        if interaction_data.get('error'):
             log_entry += f"""
-ERROR:
-{error}
+ERROR DETAILS:
+- Error Type: {interaction_data.get('error_type', 'Unknown')}
+- Error Message: {interaction_data.get('error', 'Unknown error')}
+- Traceback: {interaction_data.get('traceback', 'No traceback')}
+
+"""
+        
+        if interaction_data.get('parsing_info'):
+            log_entry += f"""
+PARSING INFO:
+{interaction_data.get('parsing_info', 'No parsing info')}
 
 """
         

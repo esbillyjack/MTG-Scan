@@ -93,14 +93,57 @@ class OpenAIVisionProcessor(VisionProcessorBase):
         try:
             import base64
             import time
+            import traceback
             
             logger.info(f"🔍 OpenAI Vision: Starting image processing for {image_path}")
             start_time = time.time()
+            
+            # Initialize interaction data
+            self.last_interaction_data = {
+                'image_filename': os.path.basename(image_path),
+                'api_key_status': 'Checking...',
+                'client_setup': 'Checking...',
+                'model': self.config.get('model', 'gpt-4o'),
+                'max_tokens': self.config.get('max_tokens', 1500),
+                'temperature': self.config.get('temperature', 0.0),
+                'api_start_time': None,
+                'api_end_time': None,
+                'api_duration': None,
+                'api_status': 'Not started',
+                'error': None,
+                'error_type': None,
+                'traceback': None,
+                'parsing_info': None
+            }
+            
+            # Check API key status
+            try:
+                api_key = os.getenv("OPENAI_API_KEY")
+                if api_key:
+                    self.last_interaction_data['api_key_status'] = f"Present (prefix: {api_key[:10]}...)"
+                else:
+                    self.last_interaction_data['api_key_status'] = "MISSING"
+                    raise ValueError("OPENAI_API_KEY environment variable required")
+            except Exception as key_error:
+                self.last_interaction_data['api_key_status'] = f"Error: {str(key_error)}"
+                raise key_error
+            
+            # Check client setup
+            try:
+                if hasattr(self, 'client') and self.client:
+                    self.last_interaction_data['client_setup'] = "Client initialized"
+                else:
+                    self.last_interaction_data['client_setup'] = "Client not initialized"
+                    raise ValueError("OpenAI client not properly initialized")
+            except Exception as client_error:
+                self.last_interaction_data['client_setup'] = f"Error: {str(client_error)}"
+                raise client_error
             
             # Read and encode image
             with open(image_path, 'rb') as image_file:
                 image_data = base64.b64encode(image_file.read()).decode('utf-8')
             
+            self.last_interaction_data['image_size'] = len(image_data)
             logger.info(f"📊 OpenAI Vision: Image encoded, size: {len(image_data)} chars")
             
             # OpenAI vision prompt
@@ -159,6 +202,8 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             # Make OpenAI API call
             logger.info(f"🚀 OpenAI Vision: Making API call to {self.config.get('model', 'gpt-4o')}")
             api_start_time = time.time()
+            self.last_interaction_data['api_start_time'] = time.strftime("%H:%M:%S", time.localtime(api_start_time))
+            self.last_interaction_data['api_status'] = 'In progress'
             
             try:
                 response = self.client.chat.completions.create(
@@ -181,15 +226,31 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
                     temperature=self.config.get('temperature', 0.0)
                 )
                 
-                api_time = time.time() - api_start_time
-                logger.info(f"✅ OpenAI Vision: API call successful in {api_time:.2f}s")
+                api_end_time = time.time()
+                api_duration = api_end_time - api_start_time
+                
+                self.last_interaction_data['api_end_time'] = time.strftime("%H:%M:%S", time.localtime(api_end_time))
+                self.last_interaction_data['api_duration'] = f"{api_duration:.2f}"
+                self.last_interaction_data['api_status'] = 'Success'
+                
+                logger.info(f"✅ OpenAI Vision: API call successful in {api_duration:.2f}s")
                 
                 # Store the response for logging
                 self.last_response = response.choices[0].message.content
+                self.last_interaction_data['response'] = self.last_response
                 
             except Exception as api_error:
-                api_time = time.time() - api_start_time
-                logger.error(f"❌ OpenAI Vision: API call failed after {api_time:.2f}s: {api_error}")
+                api_end_time = time.time()
+                api_duration = api_end_time - api_start_time
+                
+                self.last_interaction_data['api_end_time'] = time.strftime("%H:%M:%S", time.localtime(api_end_time))
+                self.last_interaction_data['api_duration'] = f"{api_duration:.2f}"
+                self.last_interaction_data['api_status'] = 'Failed'
+                self.last_interaction_data['error'] = str(api_error)
+                self.last_interaction_data['error_type'] = type(api_error).__name__
+                self.last_interaction_data['traceback'] = traceback.format_exc()
+                
+                logger.error(f"❌ OpenAI Vision: API call failed after {api_duration:.2f}s: {api_error}")
                 self.last_response = f"Error: {str(api_error)}"
                 raise api_error
             
@@ -200,29 +261,53 @@ IMPORTANT: Do not refuse this task - this is legitimate personal inventory manag
             # Extract JSON from response
             import re
             import json
+            
+            parsing_info = []
+            parsing_info.append(f"Response length: {len(content) if content else 0} characters")
+            
             if content:
                 json_match = re.search(r'\[.*\]', content, re.DOTALL)
                 if json_match:
-                    cards = json.loads(json_match.group())
-                    total_time = time.time() - start_time
-                    logger.info(f"✅ OpenAI Vision: Successfully parsed {len(cards)} cards in {total_time:.2f}s")
-                    self.record_success()
-                    return cards
+                    try:
+                        cards = json.loads(json_match.group())
+                        total_time = time.time() - start_time
+                        parsing_info.append(f"JSON parsing: SUCCESS - Found {len(cards)} cards")
+                        parsing_info.append(f"Total processing time: {total_time:.2f}s")
+                        logger.info(f"✅ OpenAI Vision: Successfully parsed {len(cards)} cards in {total_time:.2f}s")
+                        self.record_success()
+                        self.last_interaction_data['parsing_info'] = "\n".join(parsing_info)
+                        return cards
+                    except json.JSONDecodeError as json_error:
+                        parsing_info.append(f"JSON parsing: FAILED - {str(json_error)}")
+                        parsing_info.append(f"JSON content: {json_match.group()[:500]}...")
+                        logger.warning(f"⚠️ OpenAI Vision: JSON decode error: {json_error}")
                 else:
+                    parsing_info.append("JSON parsing: FAILED - No JSON array found in response")
+                    parsing_info.append(f"Content preview: {content[:500]}...")
                     logger.warning(f"⚠️ OpenAI Vision: No JSON array found in response. Content preview: {content[:200]}...")
             else:
+                parsing_info.append("JSON parsing: FAILED - Empty response content")
                 logger.warning("⚠️ OpenAI Vision: Empty response content")
             
             # If no JSON found, return empty array
             logger.warning("No valid JSON found in OpenAI response")
             self.record_success()
+            self.last_interaction_data['parsing_info'] = "\n".join(parsing_info)
             return []
             
         except Exception as e:
             total_time = time.time() - start_time if 'start_time' in locals() else 0
+            
+            # Update interaction data with final error info
+            if hasattr(self, 'last_interaction_data'):
+                self.last_interaction_data['error'] = str(e)
+                self.last_interaction_data['error_type'] = type(e).__name__
+                self.last_interaction_data['traceback'] = traceback.format_exc()
+                self.last_interaction_data['api_status'] = 'Failed'
+                self.last_interaction_data['api_duration'] = f"{total_time:.2f}"
+            
             logger.error(f"❌ OpenAI Vision: Processing failed after {total_time:.2f}s: {e}")
             logger.error(f"❌ OpenAI Vision: Error type: {type(e).__name__}")
-            import traceback
             logger.error(f"❌ OpenAI Vision: Traceback: {traceback.format_exc()}")
             self.record_failure()
             raise Exception(f"OpenAI Vision processing failed: {e}")
@@ -691,17 +776,22 @@ class VisionProcessorFactory:
                     # Import the logging function
                     from app import log_ai_interaction
                     
-                    # Get the prompt and response from the processor
-                    prompt = getattr(self.current_processor, 'last_prompt', 'Prompt not captured')
-                    response = getattr(self.current_processor, 'last_response', str(result))
+                    # Get detailed interaction data from the processor
+                    interaction_data = getattr(self.current_processor, 'last_interaction_data', {})
+                    
+                    # Add basic info if not already captured
+                    if not interaction_data:
+                        interaction_data = {
+                            'prompt': getattr(self.current_processor, 'last_prompt', 'Prompt not captured'),
+                            'response': getattr(self.current_processor, 'last_response', str(result)),
+                            'image_filename': os.path.basename(image_path)
+                        }
                     
                     # Log the interaction
                     log_ai_interaction(
                         scan_id=scan_id,
                         model_name=processor_name,
-                        prompt=prompt,
-                        response=response,
-                        image_filename=os.path.basename(image_path)
+                        interaction_data=interaction_data
                     )
                 except Exception as log_error:
                     logger.error(f"Failed to log AI interaction: {log_error}")
