@@ -1297,19 +1297,33 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                         ai_set_info = card_data.get('set', '') or card_data.get('set_symbol_description', '')
                         scryfall_data = ScryfallAPI.get_card_data(card_data['name'], ai_set_info)
                         
-                        # Calculate confidence score from vision processor result
+                        # Normalize confidence score from vision processor result (0-100 scale)
+                        confidence_score = 70.0  # Default
+                        confidence_level_str = card_data.get('confidenceLevel')
                         confidence_str = card_data.get('confidence', 'medium')
-                        if isinstance(confidence_str, str):
+                        
+                        # Prefer numeric confidenceLevel if present
+                        if confidence_level_str:
+                            # Accept formats like '100%', '85%', '70%'
+                            try:
+                                if isinstance(confidence_level_str, str) and confidence_level_str.endswith('%'):
+                                    confidence_score = float(confidence_level_str.strip('%'))
+                                else:
+                                    confidence_score = float(confidence_level_str)
+                            except Exception:
+                                confidence_score = 70.0
+                        elif isinstance(confidence_str, str):
                             if confidence_str.lower() == 'high':
-                                confidence_score = 0.9
+                                confidence_score = 90.0
                             elif confidence_str.lower() == 'medium':
-                                confidence_score = 0.7
+                                confidence_score = 70.0
                             elif confidence_str.lower() == 'low':
-                                confidence_score = 0.5
+                                confidence_score = 50.0
                             else:
-                                confidence_score = 0.7
+                                confidence_score = 70.0
                         else:
-                            confidence_score = float(confidence_str) if confidence_str else 0.7
+                            # If it's already a number, assume it's 0-100 scale
+                            confidence_score = float(confidence_str) if confidence_str else 70.0
                         
                         # Create enhanced card data
                         enhanced_card = card_data.copy()
