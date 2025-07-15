@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend.database import get_db, init_db, Card, Scan, ScanImage, ScanResult
-from backend.ai_processor import CardRecognitionAI
+# CardRecognitionAI import removed - using vision processor factory instead
 from backend.price_api import ScryfallAPI
 from backend.image_quality_validator import ImageQualityValidator
 import requests
@@ -252,12 +252,14 @@ logger.info(f"📁 Using smart file serving - Local: {UPLOADS_DIR}, Railway fall
 # Initialize database
 init_db()
 
-# Initialize AI processor
+# Initialize vision processor factory
 try:
-    ai_processor = CardRecognitionAI()
-except ValueError as e:
-    logger.error(f"AI processor not available: {e}")
-    ai_processor = None
+    from backend.vision_processor_factory import get_vision_processor_factory
+    vision_factory = get_vision_processor_factory()
+    logger.info(f"🎯 Vision processor factory initialized - Primary: {vision_factory.get_current_processor_name()}")
+except Exception as e:
+    logger.error(f"Vision processor factory not available: {e}")
+    vision_factory = None
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -469,18 +471,18 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
         shutil.copyfileobj(file.file, buffer)
     
     try:
-        # Process image with AI
-        if ai_processor is None:
-            raise HTTPException(status_code=500, detail="AI processor not available - OpenAI API key may be missing")
+        # Process image with vision processor factory
+        if vision_factory is None:
+            raise HTTPException(status_code=500, detail="Vision processor factory not available - API keys may be missing")
         
         try:
-            identified_cards = ai_processor.process_image(file_path)
-        except Exception as ai_error:
-            # AI system failed - this is a critical error that should be visible to users
-            logger.error(f"🚨 CRITICAL AI FAILURE: {str(ai_error)}")
+            identified_cards = vision_factory.process_image(file_path)
+        except Exception as vision_error:
+            # Vision system failed - this is a critical error that should be visible to users
+            logger.error(f"🚨 CRITICAL VISION FAILURE: {str(vision_error)}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"AI card identification failed: {str(ai_error)}. This indicates a critical system issue - please contact support."
+                detail=f"Vision card identification failed: {str(vision_error)}. This indicates a critical system issue - please contact support."
             )
         
         # Process each identified card
@@ -1283,11 +1285,11 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                 file_size = os.path.getsize(scan_image.file_path)
                 logger.info(f"📊 IMAGE SIZE: {file_size} bytes ({file_size/1024/1024:.2f} MB)")
                 
-                # Process image with AI
-                if ai_processor:
-                    logger.info(f"🤖 AI PROCESSING: Starting AI analysis...")
-                    card_results = ai_processor.process_image(scan_image.file_path)
-                    logger.info(f"✅ AI COMPLETE: Found {len(card_results)} cards")
+                # Process image with vision processor factory
+                if vision_factory:
+                    logger.info(f"🤖 VISION PROCESSING: Starting analysis with {vision_factory.get_current_processor_name()}...")
+                    card_results = vision_factory.process_image(scan_image.file_path)
+                    logger.info(f"✅ VISION COMPLETE: Found {len(card_results)} cards using {vision_factory.get_current_processor_name()}")
                     
                     # Create scan results for each identified card
                     for card_data in card_results:
@@ -1295,13 +1297,24 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                         ai_set_info = card_data.get('set', '') or card_data.get('set_symbol_description', '')
                         scryfall_data = ScryfallAPI.get_card_data(card_data['name'], ai_set_info)
                         
-                        # Update confidence with Scryfall data
-                        if scryfall_data:
-                            enhanced_card = ai_processor.update_confidence_with_scryfall(card_data, scryfall_data)
+                        # Calculate confidence score from vision processor result
+                        confidence_str = card_data.get('confidence', 'medium')
+                        if isinstance(confidence_str, str):
+                            if confidence_str.lower() == 'high':
+                                confidence_score = 0.9
+                            elif confidence_str.lower() == 'medium':
+                                confidence_score = 0.7
+                            elif confidence_str.lower() == 'low':
+                                confidence_score = 0.5
+                            else:
+                                confidence_score = 0.7
                         else:
-                            enhanced_card = card_data
-                            enhanced_card['scryfall_matched'] = False
-                            enhanced_card['confidence_score'] = ai_processor._parse_confidence(card_data.get('confidence', 'medium'))
+                            confidence_score = float(confidence_str) if confidence_str else 0.7
+                        
+                        # Create enhanced card data
+                        enhanced_card = card_data.copy()
+                        enhanced_card['scryfall_matched'] = bool(scryfall_data)
+                        enhanced_card['confidence_score'] = confidence_score
                         
                         # Create scan result
                         import json
@@ -1316,7 +1329,7 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                             confidence_score=enhanced_card.get('confidence_score', 0.0),
                             status="PENDING",
                             card_data=json.dumps(scryfall_data) if scryfall_data else json.dumps(enhanced_card),
-                            ai_raw_response=ai_processor.get_last_raw_response()  # Store raw AI response
+                            ai_raw_response=json.dumps(card_data)  # Store vision processor response
                         )
                         db.add(scan_result)
                         total_cards_found += 1
@@ -1326,7 +1339,7 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                     scan_image.processed_at = datetime.utcnow()
                     
                 else:
-                    scan_image.processing_error = "AI processor not available"
+                    scan_image.processing_error = "Vision processor factory not available"
                 
                 processed_images += 1
                 
@@ -1335,17 +1348,14 @@ async def process_scan(scan_id: int, db: Session = Depends(get_db)):
                 logger.error(f"Error processing scan image {scan_image.id}: {error_msg}")
                 scan_image.processing_error = error_msg
                 
-                # Check if this is an AI service error
-                if ai_processor:
-                    last_error = ai_processor.get_last_error()
-                    if last_error:
-                        logger.warning(f"AI service error details - Type: {last_error.error_type}, "
-                                     f"Quota: {last_error.is_quota_error}, "
-                                     f"Rate limit: {last_error.is_rate_limit}")
-                        
-                        # Update scan notes with error details for persistent tracking
-                        if last_error.is_quota_error or last_error.is_rate_limit:
-                            scan.notes = f"API Error: {last_error.error_type} - {last_error.message}"
+                # Check if this is a vision processor error
+                if vision_factory:
+                    current_processor = vision_factory.get_current_processor_name()
+                    logger.warning(f"Vision processor error details - Processor: {current_processor}, "
+                                 f"Error: {error_msg}")
+                    
+                    # Update scan notes with error details for persistent tracking
+                    scan.notes = f"Vision Processor Error: {current_processor} - {error_msg}"
         
         # Update scan with results
         scan.processed_images = processed_images
@@ -1971,40 +1981,44 @@ async def get_scan_history(db: Session = Depends(get_db), limit: int = 50, offse
 
 @app.get("/debug/ai-health")
 async def get_ai_health():
-    """Check AI processor health status"""
-    if ai_processor is None:
-        return {"status": "unavailable", "error": "AI processor not initialized"}
+    """Check vision processor health status"""
+    if vision_factory is None:
+        return {"status": "unavailable", "error": "Vision processor factory not initialized"}
     
     try:
-        # Check if OpenAI API key is available
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            return {"status": "error", "error": "OpenAI API key not found"}
-        
-        # Check last error
-        last_error = ai_processor.get_last_error()
-        error_info = last_error.to_dict() if last_error else None
+        current_processor = vision_factory.get_current_processor_name()
+        processor_status = vision_factory.get_processor_status()
         
         return {
             "status": "healthy",
-            "api_key_present": bool(api_key),
-            "last_error": error_info,
-            "rate_limit_interval": ai_processor.min_call_interval
+            "current_processor": current_processor,
+            "processor_status": processor_status,
+            "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 @app.get("/debug/ai-errors")
 async def get_ai_errors():
-    """Get recent AI processing errors"""
-    if ai_processor is None:
-        return {"error": "AI processor not available"}
+    """Get recent vision processing errors"""
+    if vision_factory is None:
+        return {"error": "Vision processor factory not available"}
     
-    last_error = ai_processor.get_last_error()
-    if last_error:
+    processor_status = vision_factory.get_processor_status()
+    errors = []
+    
+    for processor_name, status in processor_status.items():
+        if status.get('failure_count', 0) > 0:
+            errors.append({
+                "processor": processor_name,
+                "failure_count": status.get('failure_count', 0),
+                "last_failure": status.get('last_failure')
+            })
+    
+    if errors:
         return {
             "has_errors": True,
-            "last_error": last_error.to_dict()
+            "errors": errors
         }
     else:
         return {"has_errors": False}
@@ -2022,29 +2036,28 @@ async def get_ai_logs_full():
         
         logs_content = []
         
-        # Add AI processor information
-        if ai_processor:
-            logs_content.append("=== AI PROCESSOR STATUS ===")
-            logs_content.append(f"Model: gpt-4o")
-            logs_content.append(f"Last API Call: {ai_processor.last_api_call}")
-            logs_content.append(f"Min Call Interval: {ai_processor.min_call_interval}")
+        # Add vision processor information
+        if vision_factory:
+            logs_content.append("=== VISION PROCESSOR STATUS ===")
+            current_processor = vision_factory.get_current_processor_name()
+            processor_status = vision_factory.get_processor_status()
             
-            # Add last error if available
-            last_error = ai_processor.get_last_error() if hasattr(ai_processor, 'get_last_error') else None
-            if last_error:
-                logs_content.append("\n=== LAST ERROR ===")
-                logs_content.append(f"Type: {last_error.error_type}")
-                logs_content.append(f"Message: {last_error.message}")
-                logs_content.append(f"Timestamp: {last_error.timestamp}")
-                logs_content.append(f"Quota Error: {last_error.is_quota_error}")
-                logs_content.append(f"Rate Limit: {last_error.is_rate_limit}")
+            logs_content.append(f"Current Processor: {current_processor}")
+            logs_content.append(f"Available Processors: {list(processor_status.keys())}")
+            
+            for processor_name, status in processor_status.items():
+                logs_content.append(f"\n--- {processor_name.upper()} ---")
+                logs_content.append(f"Enabled: {status.get('enabled', False)}")
+                logs_content.append(f"Available: {status.get('available', False)}")
+                logs_content.append(f"Failure Count: {status.get('failure_count', 0)}")
+                logs_content.append(f"Last Failure: {status.get('last_failure', 'None')}")
             
             logs_content.append("\n=== SYSTEM INFORMATION ===")
             logs_content.append(f"Server Time: {datetime.utcnow()}")
             logs_content.append(f"Python Logger Level: {logging.getLogger().level}")
             
         else:
-            logs_content.append("AI Processor not available")
+            logs_content.append("Vision Processor Factory not available")
         
         return {
             "success": True,
