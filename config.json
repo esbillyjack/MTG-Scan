@@ -1,15 +1,13 @@
 {
   "vision_processor": {
-    "primary": "claude",
-    "fallback": "openai",
+    "primary": "openai",
+    "fallback": "claude",
     "processors": {
       "openai": {
         "enabled": true,
         "model": "gpt-4o",
         "max_tokens": 1500,
-        "temperature": 0.0,
-        "timeout": 120,
-        "max_retries": 3
+        "temperature": 0.0
       },
       "claude": {
         "enabled": true,
@@ -18,10 +16,5 @@
         "temperature": 0.0
       }
     }
-  },
-  "failover": {
-    "auto_switch_on_failure": true,
-    "retry_primary_after_minutes": 30,
-    "log_processor_switches": true
   }
-} 
+}
