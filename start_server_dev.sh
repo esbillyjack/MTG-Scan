@@ -18,15 +18,15 @@ if [ -f .env ]; then
 fi
 
 # Set environment variables for development
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 export PORT=8001
 export ENV_MODE="development"
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
-# Start development server with nohup to persist through sleep/lock
-nohup env ENV_MODE=development PORT=8001 PYTHONPATH="${PYTHONPATH}:$(pwd)/backend" DATABASE_URL_DEV="$DATABASE_URL_DEV" venv/bin/python backend/app.py > logs/server_dev.log 2>&1 &
+# Start development server using main.py from root directory
+echo "🚀 Starting server from root directory on port 8001..."
+nohup env ENV_MODE=development PORT=8001 DATABASE_URL_DEV="$DATABASE_URL_DEV" venv/bin/python main.py > logs/server_dev.log 2>&1 &
 
 # Get the process ID
 SERVER_PID=$!

@@ -1,7 +1,7 @@
 {
   "vision_processor": {
-    "primary": "claude",
-    "fallback": "openai",
+    "primary": "openai",
+    "fallback": "claude",
     "processors": {
       "openai": {
         "enabled": true,
