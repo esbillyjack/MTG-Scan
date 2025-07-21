@@ -295,6 +295,15 @@ async def read_root():
         content = content.replace('<body>', '<body class="env-production">')
     
     return HTMLResponse(content=content)
+@app.get("/setup-checklist.html", response_class=HTMLResponse)
+async def setup_checklist():
+    """Serve the setup checklist page for son"""
+    try:
+        with open("frontend/setup-checklist.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Setup checklist not found</h1>", status_code=404)
 
 @app.get("/api/environment")
 async def get_environment():
