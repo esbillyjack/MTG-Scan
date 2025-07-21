@@ -1,1 +1,216 @@
-<!DOCTYPE html><html><head><title>Setup Checklist</title></head><body><h1>Setup Checklist</h1><p>Coming soon...</p></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOX/Mtgscanner Setup Checklist</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .content { padding: 40px; }
+        .section { margin-bottom: 40px; padding: 25px; border: 2px solid #f0f0f0; border-radius: 10px; background: #fafafa; }
+        .section h2 { color: #667eea; margin-bottom: 20px; font-size: 1.5em; }
+        .checklist { list-style: none; }
+        .checklist li { margin: 15px 0; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #667eea; box-shadow: 0 2px 5px rgba(0,0,0,0.1); cursor: pointer; }
+        .checklist li.completed { background: #f8fff9; border-left-color: #28a745; }
+        .code-block { background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 8px; margin: 10px 0; font-family: monospace; }
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .link { color: #667eea; text-decoration: none; font-weight: bold; }
+        .btn { background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; margin: 10px 5px; }
+        .progress-bar { width: 100%; height: 20px; background: #e9ecef; border-radius: 10px; overflow: hidden; margin: 20px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); width: 0%; transition: width 0.3s ease; }
+        .back-btn { position: fixed; top: 20px; left: 20px; background: rgba(255,255,255,0.9); color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-btn">← Back to Scanner</a>
+    
+    <div class="container">
+        <div class="header">
+            <h1>🚀 MOX/Mtgscanner Setup Checklist</h1>
+            <p>Complete setup guide for collaborative development</p>
+        </div>
+
+        <div class="content">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div style="text-align: center; margin: 10px 0; font-weight: bold; color: #667eea;" id="progressText">0% Complete</div>
+
+            <div class="section">
+                <h2>🎯 Prerequisites</h2>
+                <ul class="checklist">
+                    <li>Install Python 3.12+ from <a href="https://python.org/downloads" class="link" target="_blank">python.org</a></li>
+                    <li>Install Git from <a href="https://git-scm.com/downloads" class="link" target="_blank">git-scm.com</a></li>
+                    <li>Install Cursor AI from <a href="https://cursor.sh" class="link" target="_blank">cursor.sh</a></li>
+                    <li>Create GitHub account at <a href="https://github.com" class="link" target="_blank">github.com</a></li>
+                    <li>Get access to repository (dad will add you as collaborator)</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Repository Setup</h2>
+                <ul class="checklist">
+                    <li>Clone the repository:
+                        <div class="code-block">git clone https://github.com/esbillyjack/MTG-Scan.git
+cd MTG-Scan</div>
+                    </li>
+                    <li>Verify you're on develop branch:
+                        <div class="code-block">git branch
+# Should show: * develop</div>
+                    </li>
+                    <li>Check repository access (ask dad if you can't clone)</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Python Environment</h2>
+                <ul class="checklist">
+                    <li>Create virtual environment:
+                        <div class="code-block">python3 -m venv venv</div>
+                    </li>
+                    <li>Activate virtual environment:
+                        <div class="code-block"># On Mac/Linux:
+source venv/bin/activate
+
+# On Windows:
+venv\Scripts\activate</div>
+                    </li>
+                    <li>Install dependencies:
+                        <div class="code-block">pip install -r requirements.txt
+pip install fastapi uvicorn sqlalchemy psycopg2-binary python-dotenv</div>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Configuration</h2>
+                <ul class="checklist">
+                    <li>Copy environment template:
+                        <div class="code-block">cp railway-env-template.txt .env</div>
+                    </li>
+                    <li>Edit .env file with your API keys (ask dad for these)</li>
+                    <li>Verify environment variables are loaded:
+                        <div class="code-block">echo $ENV_MODE
+echo $OPENAI_API_KEY</div>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Start Development Server</h2>
+                <ul class="checklist">
+                    <li>Activate environment and start server:
+                        <div class="code-block">source venv/bin/activate
+source .env
+python backend/app.py</div>
+                    </li>
+                    <li>Open browser to <a href="http://localhost:8001" class="link" target="_blank">http://localhost:8001</a></li>
+                    <li>Verify Magic Card Scanner interface loads</li>
+                    <li>Test upload functionality with a Magic card image</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Development Workflow</h2>
+                <ul class="checklist">
+                    <li>Create feature branch:
+                        <div class="code-block">git checkout -b feature/your-feature-name</div>
+                    </li>
+                    <li>Make your changes and test locally</li>
+                    <li>Commit your changes:
+                        <div class="code-block">git add .
+git commit -m "Add your feature description"
+git push origin feature/your-feature-name</div>
+                    </li>
+                    <li>Create pull request on GitHub for dad to review</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Using Cursor AI</h2>
+                <ul class="checklist">
+                    <li>Open project in Cursor:
+                        <div class="code-block">cursor MTG-Scan</div>
+                    </li>
+                    <li>Ask Cursor AI for help with:
+                        <ul style="margin-left: 20px; margin-top: 10px;">
+                            <li>"How do I add a new feature to scan Magic cards?"</li>
+                            <li>"Review this code for bugs"</li>
+                            <li>"Explain how the card scanning works"</li>
+                            <li>"Help me debug this issue"</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Safety Reminders:</strong>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>Always work locally first (http://localhost:8001)</li>
+                    <li>Never edit production directly</li>
+                    <li>Create pull requests for all changes</li>
+                    <li>Ask dad for API keys and database access</li>
+                </ul>
+            </div>
+
+            <div class="success">
+                <strong>🎉 You're Ready!</strong>
+                <p>Once you complete this checklist, you can:</p>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>Run the application locally</li>
+                    <li>Upload and scan Magic cards</li>
+                    <li>View the collection database</li>
+                    <li>Make code changes safely</li>
+                    <li>Use Cursor AI for help</li>
+                    <li>Collaborate with dad</li>
+                </ul>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <a href="/" class="btn">← Back to Magic Card Scanner</a>
+                <button class="btn" onclick="resetChecklist()" style="background: #6c757d;">Reset Checklist</button>
+            </div>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
+            <p>Need help? Ask dad for API keys and database access!</p>
+            <p>Repository: <a href="https://github.com/esbillyjack/MTG-Scan" class="link" target="_blank">github.com/esbillyjack/MTG-Scan</a></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const items = document.querySelectorAll('.checklist li');
+            items.forEach((item, index) => {
+                item.dataset.id = 'item-' + index;
+                item.addEventListener('click', function(e) {
+                    if (e.target.tagName === 'A') return;
+                    this.classList.toggle('completed');
+                    updateProgress();
+                });
+            });
+            updateProgress();
+        });
+
+        function updateProgress() {
+            const total = document.querySelectorAll('.checklist li').length;
+            const completed = document.querySelectorAll('.checklist li.completed').length;
+            const percentage = Math.round((completed / total) * 100);
+            document.getElementById('progressFill').style.width = percentage + '%';
+            document.getElementById('progressText').textContent = percentage + '% Complete (' + completed + '/' + total + ')';
+        }
+
+        function resetChecklist() {
+            if (confirm('Reset the entire checklist?')) {
+                document.querySelectorAll('.checklist li').forEach(item => {
+                    item.classList.remove('completed');
+                });
+                updateProgress();
+            }
+        }
+    </script>
+</body>
+</html>
